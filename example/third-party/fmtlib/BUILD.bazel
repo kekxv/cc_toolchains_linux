@@ -1,0 +1,28 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake", "configure_make")
+
+exports_files(["repositories.MODULE.bazel"])
+
+cmake(
+    name = "fmt",
+    cache_entries = {
+        "FMT_TEST": "OFF",
+        "FMT_DOC": "OFF",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$$<$$<CONFIG:Debug>:Debug>",
+        "CMAKE_C_COMPILER_WORKS": "TRUE",
+        "CMAKE_CXX_COMPILER_WORKS": "TRUE",
+        "CMAKE_BUILD_TYPE": "RELEASE",
+    },
+    generate_crosstool_file = True,
+    lib_source = "@fmtlib_fmt//:all",
+    out_static_libs = select({
+        "@platforms//os:windows": ["fmt.lib"],
+        "//conditions:default": ["libfmt.a"],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "test_fmt",
+    srcs = ["test/test_fmt.cpp"],
+    deps = [":fmt"],
+)
