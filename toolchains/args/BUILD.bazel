@@ -15,9 +15,22 @@
 load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
 
 cc_args(
-    name = "warnings",
+    name = "c-warnings",
     actions = [
         "@rules_cc//cc/toolchains/actions:c_compile",
+        "@rules_cc//cc/toolchains/actions:cpp_compile_actions",
+    ],
+    args = [
+        "-Wall",
+        "-Wextra",
+        "-Wpedantic",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "warnings",
+    actions = [
         "@rules_cc//cc/toolchains/actions:cpp_compile_actions",
     ],
     args = [
