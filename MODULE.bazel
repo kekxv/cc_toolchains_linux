@@ -1,0 +1,38 @@
+module(
+    name = "cc_toolchains_linux",
+    version = "0.0.1",
+)
+
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "rules_cc", version = "0.2.14")
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "glibc-linux-gnu-x86_64",
+    build_file_content = """filegroup(name = "toolchain", srcs = glob(["**"]), visibility = ["//visibility:public"])""",
+    integrity = "sha256-hq7+2gJWgu+FkI/x0cimrps7ueq5cDMQ2jCzdNu2DWE=",
+    strip_prefix = "",
+    type = "tar.bz2",
+    url = "https://github.com/ClangTools/clang-binaries/releases/download/linux-gcc12-x86_64-buildroot-2022.11.3-glibc.2.36/linux-gcc12-x86_64-buildroot-2022.11.3-gnu-glibc_2.36.tar.bz2",
+)
+
+http_archive(
+    name = "musl-linux-aarch64",
+    build_file = "//toolchains/musl-linux-aarch64:gcc.BUILD.bazel",
+    integrity = "sha256-NVQ5GproLMH+NaarDJ76NKW6xUdLbVJ0dJlyVuFIwpc=",
+    strip_prefix = "aarch64--musl--stable-2023.11-1",
+    type = "tar.bz2",
+    url = "https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--musl--stable-2023.11-1.tar.bz2",
+)
+
+register_execution_platforms(
+    "//:linux-x86_64",
+    "//:linux-aarch64",
+)
+
+register_toolchains(
+    "//:linux-x86_64-toolchain",
+    "//:linux-aarch64-toolchain",
+)

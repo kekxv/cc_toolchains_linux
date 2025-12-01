@@ -1,0 +1,19 @@
+alias(
+    name = "linux-x86_64",
+    actual = "//platforms:linux_x86_64",
+)
+
+alias(
+    name = "linux-x86_64-toolchain",
+    actual = "//toolchains/glibc-linux-gnu-x86_64:toolchain",
+)
+
+alias(
+    name = "linux-aarch64",
+    actual = "//platforms:linux_aarch64",
+)
+
+alias(
+    name = "linux-aarch64-toolchain",
+    actual = "//toolchains/musl-linux-aarch64:toolchain",
+)

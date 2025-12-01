@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+TOOLCHAIN_PREFIX=x86_64-linux-
+NAME=$(basename "$0")
+if [ "$NAME" == "wrapper" ];then
+  exit 0
+fi
+if [ "$(uname)" == "Darwin" ] ;then
+  # Mac OS X 操作系统
+  exec "${NAME}" "$@"
+elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ] ;then
+  # GNU/Linux操作系统
+  ROOT_PATH=""
+  CURRENT_DIR=$(cd $(dirname $0); pwd)
+  ROOT_PATH="${CURRENT_DIR%%/external/*}/external"
+  if [ -d "external" ]; then
+    ROOT_PATH="external"
+  fi
+  NAME="${TOOLCHAIN_PREFIX}${NAME}"
+  NAME=$(find -L ${ROOT_PATH} -name "${NAME}" -prune -type f -print -quit)
+
+  exec "${NAME}" "$@"
+elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ] ;then
+  # Windows NT操作系统
+  exit 0
+fi

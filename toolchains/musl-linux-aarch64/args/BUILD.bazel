@@ -1,0 +1,89 @@
+# Copyright 2025 The Bazel Authors. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
+load("@rules_cc//cc/toolchains/args:sysroot.bzl", "cc_sysroot")
+
+cc_sysroot(
+    name = "linux_sysroot",
+    actions = [
+        "@rules_cc//cc/toolchains/actions:assembly_actions",
+        "@rules_cc//cc/toolchains/actions:c_compile",
+        "@rules_cc//cc/toolchains/actions:cpp_compile_actions",
+        "@rules_cc//cc/toolchains/actions:link_executable_actions",
+        "@rules_cc//cc/toolchains/actions:link_actions",
+    ],
+    data = [
+        "@musl-linux-aarch64//:builtin_headers",
+        "@musl-linux-aarch64//:linker_builtins",
+        "@musl-linux-aarch64//:multicall_support_files",
+        "@musl-linux-aarch64//:sysroot",
+    ],
+    sysroot = "@musl-linux-aarch64//:sysroot",
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "default_cpp_compile",
+    actions = [
+        "@rules_cc//cc/toolchains/actions:cpp_compile_actions",
+    ],
+    args = [
+        "-std=c++17",
+        "-lstdc++",
+        "-Wno-unused-parameter",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "default_c_compile",
+    actions = [
+        "@rules_cc//cc/toolchains/actions:cpp_compile_actions",
+        "@rules_cc//cc/toolchains/actions:c_compile",
+    ],
+    args = [
+        # Common C/C++ flags
+        "-fno-canonical-system-headers",
+        "-no-canonical-prefixes",
+        # "-Wno-builtin-macro-redefined",
+        # "-D__DATE__=\"redacted\"",
+        # "-D__TIMESTAMP__=\"redacted\"",
+        # "-D__TIME__=\"redacted\"",
+        # "-fPIC",  # Apply to all compile actions via compiler_flags if desired
+        "-Wno-unused-parameter",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_args(
+    name = "default_link",
+    actions = [
+        # "@rules_cc//cc/toolchains/actions:cpp_compile_actions",
+        # "@rules_cc//cc/toolchains/actions:c_compile",
+        "@rules_cc//cc/toolchains/actions:link_executable_actions",
+        "@rules_cc//cc/toolchains/actions:link_actions",
+    ],
+    args = [
+        # "-static",
+        "-lm",
+        "-lpthread",
+        "-ldl",
+        "-lstdc++",
+        "-lc",
+        #"-static-libgcc",
+        #"-static-libstdc++",
+    ],
+    visibility = ["//visibility:public"],
+)

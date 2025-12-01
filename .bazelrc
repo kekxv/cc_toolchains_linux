@@ -1,0 +1,8 @@
+
+build:fuse              --remote_instance_name=fuse
+
+build:linux                --config=fuse
+build:linux                --platforms=//:linux-x86_64
+
+build:linux-aarch64                --config=fuse
+build:linux-aarch64                --platforms=//:linux-aarch64
