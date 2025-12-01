@@ -8,3 +8,4 @@ temp_test_repos
 
 # CLion
 /.clwb/
+bazel-*/
