@@ -1,0 +1,47 @@
+name: workflow.yml
+on:
+  push:
+    branches: [ main ]
+jobs:
+  example:
+    name: Build example
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Install Bazel
+        uses: bazel-contrib/setup-bazel@0.15.0
+        with:
+          bazelisk-version: 1.x
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
+      - name: check hello_world
+        working-directory: ./examples
+        run: |
+          bazel run --config=linux :hello_world
+      - name: check (rules_foreign_cc) third-party/fmtlib:test_fmt
+        working-directory: ./examples
+        run: |
+          bazel run --config=linux third-party/fmtlib:test_fmt
+
+      - name: build (aarch64) hello_world
+        working-directory: ./examples
+        run: |
+          bazel build --config=linux-aarch64 :hello_world
+      - name: check (aarch64) hello_world
+        working-directory: ./examples
+        run: |
+          file bazel-bin/hello_world
+
+      - name: build (aarch64,rules_foreign_cc) third-party/fmtlib:test_fmt
+        working-directory: ./examples
+        run: |
+          bazel build --config=linux-aarch64 third-party/fmtlib:test_fmt
+      - name: check (aarch64) third-party/fmtlib/test_fmt
+        working-directory: ./examples
+        run: |
+          file bazel-bin/third-party/fmtlib/test_fmt
+
+
