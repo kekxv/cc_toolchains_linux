@@ -20,6 +20,7 @@ cc_toolchain(
         "//toolchains/musl-linux-aarch64/args:default_link",
         "//toolchains/musl-linux-aarch64/args:linux_sysroot",
         "//toolchains/args:no_absolute_paths_for_builtins",
+        "//toolchains/args:c-warnings",
         "//toolchains/args:warnings",
     ],
     enabled_features = [
