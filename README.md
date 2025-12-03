@@ -12,3 +12,19 @@ git_override(
     remote = "https://github.com/kekxv/cc_toolchains_linux.git",
 )
 ```
+
+## Use
+
+.bazelrc
+
+```.bazelrc
+build:linux                --platforms=@cc_toolchains_linux//:linux-x86_64
+build:linux-aarch64        --platforms=@cc_toolchains_linux//:linux-aarch64
+build:linux-luckfox        --platforms=@cc_toolchains_linux//:linux-armv7l-luckfox
+build:linux-riscv64        --platforms=@cc_toolchains_linux//:linux-riscv64
+```
+
+shell:
+```shell
+bazel build --config=linux-luckfox ...
+```
