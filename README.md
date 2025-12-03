@@ -22,6 +22,7 @@ build:linux                --platforms=@cc_toolchains_linux//:linux-x86_64
 build:linux-aarch64        --platforms=@cc_toolchains_linux//:linux-aarch64
 build:linux-luckfox        --platforms=@cc_toolchains_linux//:linux-armv7l-luckfox
 build:linux-riscv64        --platforms=@cc_toolchains_linux//:linux-riscv64
+build:linux-loongarch64    --platforms=@cc_toolchains_linux//:linux-loongarch64
 ```
 
 shell:

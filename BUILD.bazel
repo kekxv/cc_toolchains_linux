@@ -37,3 +37,13 @@ alias(
     name = "linux-armv7l-luckfox-toolchain",
     actual = "//toolchains/gcc-ulibc-linux-armv7l-luckfox:toolchain",
 )
+
+alias(
+    name = "linux-loongarch64",
+    actual = "//platforms:linux_loongarch64",
+)
+
+alias(
+    name = "linux-loongarch64-toolchain",
+    actual = "//toolchains/gcc-linux-loongarch64:toolchain",
+)

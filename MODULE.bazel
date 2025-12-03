@@ -44,10 +44,20 @@ http_archive(
     url = "https://github.com/ClangTools/clang-binaries/releases/download/riscv64-linux-musl-x86_64-20240201/riscv64-linux-musl-x86_64.tar.xz",
 )
 
+http_archive(
+    name = "gcc-linux-loongarch64",
+    build_file = "//toolchains/gcc-linux-loongarch64:gcc.BUILD.bazel",
+    integrity = "sha256-+znReLZ2D0mFLoRSwJK/wXapjDFmzhO31wDj2p6Z4jc=",
+    strip_prefix = "loongson-gnu-toolchain-8.3-x86_64-loongarch64-linux-gnu-rc1.6",
+    type = "tar.xz",
+    url = "https://github.com/ClangTools/clang-binaries/releases/download/loongson-gnu-toolchain-8.3-x86_64-loongarch64-linux-gnu-rc1.6/loongson-gnu-toolchain-8.3-x86_64-loongarch64-linux-gnu-rc1.6.tar.xz",
+)
+
 register_execution_platforms(
     "//:linux-x86_64",
     "//:linux-aarch64",
     "//:linux-riscv64",
+    "//:linux-loongarch64",
     "//:linux-armv7l-luckfox",
 )
 
@@ -55,5 +65,6 @@ register_toolchains(
     "//:linux-x86_64-toolchain",
     "//:linux-aarch64-toolchain",
     "//:linux-riscv64-licheerv-toolchain",
+    "//:linux-loongarch64-toolchain",
     "//:linux-armv7l-luckfox-toolchain",
 )

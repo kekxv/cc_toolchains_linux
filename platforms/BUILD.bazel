@@ -76,3 +76,26 @@ config_setting(
     ],
     visibility = ["//visibility:public"],
 )
+
+constraint_value(
+    name = "loongarch64",
+    constraint_setting = "@platforms//cpu:cpu",
+)
+
+platform(
+    name = "linux_loongarch64",
+    constraint_values = [
+        ":loongarch64",
+        "@platforms//os:linux",
+    ],
+    exec_properties = exec_properties,
+)
+
+config_setting(
+    name = "linux-loongarch64",
+    constraint_values = [
+        ":loongarch64",
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+)
