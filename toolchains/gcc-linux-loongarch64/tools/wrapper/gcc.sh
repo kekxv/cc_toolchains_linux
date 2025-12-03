@@ -113,9 +113,11 @@ if [[ $RET_CODE -eq 0 && -n "${DEP_FILE}" && -f "${DEP_FILE}" ]]; then
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # MacOS sed 需要一个空字符串作为备份扩展名
         sed -i '' 's|/worker/build/[a-f0-9]*/root/||g' "${DEP_FILE}"
+        sed -i '' -E 's|/[^ ]*/execroot/[^/]+/||g' "${DEP_FILE}"
     else
         # Linux sed
         sed -i 's|/worker/build/[a-f0-9]*/root/||g' "${DEP_FILE}"
+        sed -i -E 's|/[^ ]*/execroot/[^/]+/||g' "${DEP_FILE}"
     fi
 fi
 

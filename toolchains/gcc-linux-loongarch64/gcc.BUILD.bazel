@@ -59,7 +59,8 @@ filegroup(
     data = glob([
         "bin/*ld*",
         "lib/**/*.a",
-        "lib/**/*.so*",
+        #"lib/**/*.so*",
+        "loongarch64-linux-gnu/sysroot/usr/lib64/**/*.so*",
         "lib/**/*.o",
     ]),
 )
