@@ -35,14 +35,25 @@ http_archive(
     url = "https://github.com/kekxv/luckfox-bazel/releases/download/linux-rockchip830-uclibcgnu-toolchain/arm-rockchip830-linux-uclibcgnueabihf.tar.gz",
 )
 
-register_execution_platforms(
-    "//:linux-x86_64",
-    "//:linux-aarch64",
-    "//:linux-armv7l-luckfox",
+http_archive(
+    name = "gcc-musl-linux-riscv64",
+    build_file = "//toolchains/gcc-musl-linux-riscv64:gcc.BUILD.bazel",
+    integrity = "sha256-7+rtUR7j3+gMQPqgAfkBWfQUhNlzmuyAV+wfJ13F/Ac=",
+    strip_prefix = "riscv64-linux-musl-x86_64",
+    type = "tar.xz",
+    url = "https://github.com/ClangTools/clang-binaries/releases/download/riscv64-linux-musl-x86_64-20240201/riscv64-linux-musl-x86_64.tar.xz",
 )
 
-register_toolchains(
-    "//:linux-x86_64-toolchain",
-    "//:linux-aarch64-toolchain",
-    "//:linux-armv7l-luckfox-toolchain",
-)
+# register_execution_platforms(
+#     "//:linux-x86_64",
+#     "//:linux-aarch64",
+#     "//:linux-riscv64-licheerv",
+#     "//:linux-armv7l-luckfox",
+# )
+#
+# register_toolchains(
+#     "//:linux-x86_64-toolchain",
+#     "//:linux-aarch64-toolchain",
+#     "//:linux-riscv64-licheerv-toolchain",
+#     "//:linux-armv7l-luckfox-toolchain",
+# )

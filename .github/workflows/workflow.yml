@@ -54,6 +54,8 @@ jobs:
             config: linux-aarch64
           - platform: linux-luckfox
             config: linux-luckfox
+          - platform: linux-riscv64
+            config: linux-riscv64
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -85,6 +87,8 @@ jobs:
             # 将 target 转换为路径 (例如 :hello_world -> hello_world)
             BIN_PATH=$(bazel cquery --config=${{ matrix.config }} --output=files $TARGET | head -n 1)
           
+            echo "===================>"
             echo "Checking binary type for: $BIN_PATH"
             file "$BIN_PATH"
+            echo <"==================="
           done

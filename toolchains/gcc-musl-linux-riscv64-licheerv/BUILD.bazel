@@ -1,0 +1,42 @@
+load("@rules_cc//cc/toolchains:make_variable.bzl", "cc_make_variable")
+load("@rules_cc//cc/toolchains:toolchain.bzl", "cc_toolchain")
+
+cc_make_variable(
+    name = "example_variable",
+    value = "-DEXAMPLE=1",
+    variable_name = "EXAMPLE_SUBSTITUTION",
+)
+
+cc_toolchain(
+    name = "gcc",
+    args = [
+        "//toolchains/gcc-musl-linux-riscv64-licheerv/args:default_cpp_compile",
+        "//toolchains/gcc-musl-linux-riscv64-licheerv/args:default_c_compile",
+        "//toolchains/gcc-musl-linux-riscv64-licheerv/args:default_link",
+        "//toolchains/gcc-musl-linux-riscv64-licheerv/args:linux_sysroot",
+        "//toolchains/args:no_absolute_paths_for_builtins",
+        "//toolchains/args:c-warnings",
+        "//toolchains/args:warnings",
+    ],
+    enabled_features = [
+        "@rules_cc//cc/toolchains/args:experimental_replace_legacy_action_config_features",
+    ],
+    known_features = ["@rules_cc//cc/toolchains/args:experimental_replace_legacy_action_config_features"],
+    make_variables = [":example_variable"],
+    tool_map = "//toolchains/gcc-musl-linux-riscv64-licheerv/tools:all_tools",
+)
+
+toolchain(
+    name = "toolchain",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:riscv64",
+    ],
+    toolchain = ":gcc",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+    visibility = ["//visibility:public"],
+)

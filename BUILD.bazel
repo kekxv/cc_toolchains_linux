@@ -19,6 +19,16 @@ alias(
 )
 
 alias(
+    name = "linux-riscv64",
+    actual = "//platforms:linux_riscv64",
+)
+
+alias(
+    name = "linux-riscv64-licheerv-toolchain",
+    actual = "//toolchains/gcc-musl-linux-riscv64-licheerv:toolchain",
+)
+
+alias(
     name = "linux-armv7l-luckfox",
     actual = "//platforms:linux_armv7l-luckfox",
 )

@@ -42,6 +42,24 @@ config_setting(
 )
 
 platform(
+    name = "linux_riscv64",
+    constraint_values = [
+        "@platforms//cpu:riscv64",
+        "@platforms//os:linux",
+    ],
+    exec_properties = exec_properties,
+)
+
+config_setting(
+    name = "linux-riscv64",
+    constraint_values = [
+        "@platforms//cpu:riscv64",
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+platform(
     name = "linux_armv7l-luckfox",
     constraint_values = [
         "@platforms//cpu:armv7",

@@ -9,3 +9,17 @@ local_path_override(
 )
 
 include("//third-party/fmtlib:repositories.MODULE.bazel")
+
+register_execution_platforms(
+    "@cc_toolchains_linux//:linux-x86_64",
+    "@cc_toolchains_linux//:linux-aarch64",
+    "@cc_toolchains_linux//:linux-riscv64",
+    "@cc_toolchains_linux//:linux-armv7l-luckfox",
+)
+
+register_toolchains(
+    "@cc_toolchains_linux//:linux-x86_64-toolchain",
+    "@cc_toolchains_linux//:linux-aarch64-toolchain",
+    "@cc_toolchains_linux//:linux-riscv64-licheerv-toolchain",
+    "@cc_toolchains_linux//:linux-armv7l-luckfox-toolchain",
+)

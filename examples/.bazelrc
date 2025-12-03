@@ -8,3 +8,6 @@ build:linux-aarch64                --platforms=@cc_toolchains_linux//:linux-aarc
 
 build:linux-luckfox                --config=fuse
 build:linux-luckfox                --platforms=@cc_toolchains_linux//:linux-armv7l-luckfox
+
+build:linux-riscv64                --config=fuse
+build:linux-riscv64                --platforms=@cc_toolchains_linux//:linux-riscv64
