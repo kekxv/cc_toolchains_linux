@@ -1,47 +1,90 @@
 name: workflow.yml
+
 on:
   push:
     branches: [ main ]
+  pull_request: # 建议加上 PR 触发，方便代码合并前检查
+
+# 这里的并发控制可以防止同一个分支多次提交导致大量无用构建
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  example:
-    name: Build example
+  # Job 1: 基础 Linux 检查 (Host 环境)
+  # 只有这个通过了，后续才会执行
+  host-linux-check:
+    name: Check Host (Linux)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./examples # 全局设置工作目录
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Install Bazel
         uses: bazel-contrib/setup-bazel@0.15.0
         with:
           bazelisk-version: 1.x
-          bazelisk-cache: true
-          disk-cache: ${{ github.workflow }}
           repository-cache: true
+          # 建议使用固定的 cache key 前缀，避免不同 job 之间缓存隔离导致重复下载
+          disk-cache: ${{ github.workflow }}-linux
 
-      - name: check hello_world
-        working-directory: ./examples
-        run: |
-          bazel run --config=linux :hello_world
-      - name: check (rules_foreign_cc) third-party/fmtlib:test_fmt
-        working-directory: ./examples
-        run: |
-          bazel run --config=linux third-party/fmtlib:test_fmt
+      - name: Run hello_world (Linux)
+        run: bazel run --config=linux :hello_world
 
-      - name: build (aarch64) hello_world
-        working-directory: ./examples
-        run: |
-          bazel build --config=linux-aarch64 :hello_world
-      - name: check (aarch64) hello_world
-        working-directory: ./examples
-        run: |
-          file bazel-bin/hello_world
+      - name: Run fmtlib tests (Linux)
+        run: bazel run --config=linux --test_output=errors third-party/fmtlib:test_fmt
 
-      - name: build (aarch64,rules_foreign_cc) third-party/fmtlib:test_fmt
+  # Job 2: 交叉编译 (依赖 host-linux-check)
+  cross-compile:
+    name: Build ${{ matrix.platform }}
+    needs: host-linux-check # 关键：依赖上一步的结果
+    runs-on: ubuntu-latest
+    defaults:
+      run:
         working-directory: ./examples
-        run: |
-          bazel build --config=linux-aarch64 third-party/fmtlib:test_fmt
-      - name: check (aarch64) third-party/fmtlib/test_fmt
-        working-directory: ./examples
-        run: |
-          file bazel-bin/third-party/fmtlib/test_fmt
+    strategy:
+      fail-fast: false # 如果其中一个架构失败，不要取消另一个架构的构建
+      matrix:
+        # 定义矩阵，并行执行 aarch64 和 luckfox
+        include:
+          - platform: linux-aarch64
+            config: linux-aarch64
+          - platform: linux-luckfox
+            config: linux-luckfox
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
+      - name: Install Bazel
+        uses: bazel-contrib/setup-bazel@0.15.0
+        with:
+          bazelisk-version: 1.x
+          repository-cache: true
+          disk-cache: ${{ github.workflow }}-${{ matrix.platform }}
 
+      # 这里使用了循环来构建多个目标，减少重复的 step 定义
+      # 同时也合并了 build 和 file check
+      - name: Build and Check ${{ matrix.platform }}
+        run: |
+          TARGETS=":hello_world third-party/fmtlib:test_fmt"
+          
+          for TARGET in $TARGETS; do
+            echo "----------------------------------------"
+            echo "Building $TARGET for ${{ matrix.platform }}..."
+          
+            # Build
+            bazel build --config=${{ matrix.config }} --keep_going $TARGET
+          
+            # Check file type (找到对应的输出文件)
+            # 注意：Bazel 输出路径可能会根据配置变化，这里使用 bazel cquery 获取输出路径更稳健，
+            # 但为了保持您原有的逻辑简单，我们假设路径规则如下：
+          
+            # 将 target 转换为路径 (例如 :hello_world -> hello_world)
+            BIN_PATH=$(bazel cquery --config=${{ matrix.config }} --output=files $TARGET | head -n 1)
+          
+            echo "Checking binary type for: $BIN_PATH"
+            file "$BIN_PATH"
+          done
