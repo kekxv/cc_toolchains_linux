@@ -44,16 +44,16 @@ http_archive(
     url = "https://github.com/ClangTools/clang-binaries/releases/download/riscv64-linux-musl-x86_64-20240201/riscv64-linux-musl-x86_64.tar.xz",
 )
 
-# register_execution_platforms(
-#     "//:linux-x86_64",
-#     "//:linux-aarch64",
-#     "//:linux-riscv64-licheerv",
-#     "//:linux-armv7l-luckfox",
-# )
-#
-# register_toolchains(
-#     "//:linux-x86_64-toolchain",
-#     "//:linux-aarch64-toolchain",
-#     "//:linux-riscv64-licheerv-toolchain",
-#     "//:linux-armv7l-luckfox-toolchain",
-# )
+register_execution_platforms(
+    "//:linux-x86_64",
+    "//:linux-aarch64",
+    "//:linux-riscv64-licheerv",
+    "//:linux-armv7l-luckfox",
+)
+
+register_toolchains(
+    "//:linux-x86_64-toolchain",
+    "//:linux-aarch64-toolchain",
+    "//:linux-riscv64-licheerv-toolchain",
+    "//:linux-armv7l-luckfox-toolchain",
+)
