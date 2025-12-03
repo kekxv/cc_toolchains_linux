@@ -2,7 +2,6 @@ load("@rules_cc//cc/toolchains:make_variable.bzl", "cc_make_variable")
 load("@rules_cc//cc/toolchains:toolchain.bzl", "cc_toolchain")
 
 exports_files([
-    "toolchains.MODULE.bazel",
     "gcc.BUILD.bazel",
 ])
 
