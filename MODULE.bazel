@@ -47,7 +47,7 @@ http_archive(
 register_execution_platforms(
     "//:linux-x86_64",
     "//:linux-aarch64",
-    "//:linux-riscv64-licheerv",
+    "//:linux-riscv64",
     "//:linux-armv7l-luckfox",
 )
 
