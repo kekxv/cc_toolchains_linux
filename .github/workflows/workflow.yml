@@ -90,5 +90,5 @@ jobs:
             echo "===================>"
             echo "Checking binary type for: $BIN_PATH"
             file "$BIN_PATH"
-            echo <"==================="
+            echo "<==================="
           done
