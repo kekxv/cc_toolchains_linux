@@ -17,3 +17,13 @@ alias(
     name = "linux-aarch64-toolchain",
     actual = "//toolchains/musl-linux-aarch64:toolchain",
 )
+
+alias(
+    name = "linux-armv7l-luckfox",
+    actual = "//platforms:linux_armv7l-luckfox",
+)
+
+alias(
+    name = "linux-armv7l-luckfox-toolchain",
+    actual = "//toolchains/gcc-ulibc-linux-armv7l-luckfox:toolchain",
+)

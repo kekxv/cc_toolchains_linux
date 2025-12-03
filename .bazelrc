@@ -6,3 +6,6 @@ build:linux                --platforms=//:linux-x86_64
 
 build:linux-aarch64                --config=fuse
 build:linux-aarch64                --platforms=//:linux-aarch64
+
+build:linux-luckfox                --config=fuse
+build:linux-luckfox                --platforms=//:linux-armv7l-luckfox
