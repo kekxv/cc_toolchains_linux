@@ -39,7 +39,7 @@ fi
 # 3. 查找真正的 AR 工具 (获取绝对路径以验证存在)
 #    -maxdepth 5: 限制搜索深度，防止扫描太深
 #    -print -quit: 找到第一个匹配项立即停止
-REAL_AR_ABS=$(find "${ROOT_PATH}" -maxdepth 5 -name "${AR_NAME}" -type f -print -quit)
+REAL_AR_ABS=$(find -L "${ROOT_PATH}" -maxdepth 8 -name "${AR_NAME}" -type f -print -quit)
 
 if [[ -z "${REAL_AR_ABS}" ]]; then
     echo "ERROR: [ar.sh] Could not find ${AR_NAME} in ${ROOT_PATH}" >&2

@@ -43,7 +43,7 @@ fi
 # 3. 在 external 目录下查找真正的编译器 (获取绝对路径)
 #    -maxdepth 5: 限制搜索深度，防止扫描整个目录树
 #    -print -quit: 找到第一个匹配项立即停止
-REAL_GCC_ABS=$(find "${ROOT_PATH}" -maxdepth 5 -name "${GCC_NAME}" -type f -print -quit)
+REAL_GCC_ABS=$(find -L "${ROOT_PATH}" -maxdepth 8 -name "${GCC_NAME}" -type f -print -quit)
 
 if [[ -z "${REAL_GCC_ABS}" ]]; then
     echo "ERROR: [ld.sh] Could not find ${GCC_NAME} in ${ROOT_PATH}" >&2
