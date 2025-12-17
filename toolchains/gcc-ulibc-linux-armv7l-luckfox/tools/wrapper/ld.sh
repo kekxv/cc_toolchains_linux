@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# ==========================================
-# 动态查找 GCC 路径并修复 ld 调用的 Wrapper
-# (修复 Absolute Path Inclusion 问题)
-# ==========================================
+# ==============================================================================
+# 动态查找 GCC 并实时修复 Sysroot 路径问题的 Wrapper
+# Wrapper to dynamically find GCC and fix Sysroot path issues on the fly.
+# ==============================================================================
 
 # 定义工具名称
 GCC_NAME="arm-rockchip830-linux-uclibcgnueabihf-g++"
@@ -83,9 +83,23 @@ trap 'rm -rf "${TEMP_LD_DIR}"' EXIT
 ln -sf "${REAL_LD}" "${TEMP_LD_DIR}/ld"
 ln -sf "${REAL_LD}.bfd" "${TEMP_LD_DIR}/ld.bfd"
 
+# ==============================================================================
+# 新增：参数过滤逻辑
+# 目的：移除 loongarch 编译器不支持的 -std=c++20 参数
+# ==============================================================================
+ARGS_FILTERED=()
+for arg in "$@"; do
+    if [[ "$arg" == "-std=c++20" ]]; then
+        # 如果你想替换成兼容的参数(如c++2a)，可以在这里修改，现在是直接忽略
+        continue
+    fi
+    ARGS_FILTERED+=("$arg")
+done
+
 # 7. 调用 GCC
 #    -B: 指定编译器查找工具(ld)的搜索路径
 #    使用相对路径 "${REAL_GCC_INVOKE}" 调用
+#    注意：这里使用了 "${ARGS_FILTERED[@]}" 替代了 "$@"
 exec "${REAL_GCC_INVOKE}" \
     -B "${TEMP_LD_DIR}" \
-    "$@"
+    "${ARGS_FILTERED[@]}"
