@@ -6,7 +6,7 @@
 # ==========================================
 
 # 定义工具名称
-GCC_NAME="arm-rockchip830-linux-uclibcgnueabihf-g++"
+GCC_NAME="arm-rockchip830-linux-uclibcgnueabihf-gcc"
 AR_NAME="arm-rockchip830-linux-uclibcgnueabihf-ar"
 AS_NAME="arm-rockchip830-linux-uclibcgnueabihf-as"
 

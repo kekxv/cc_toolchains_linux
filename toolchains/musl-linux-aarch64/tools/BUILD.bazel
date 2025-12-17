@@ -20,6 +20,7 @@ licenses(["notice"])
 exports_files([
     "wrapper/ld.sh",
     "wrapper/gcc.sh",
+    "wrapper/g++.sh",
     "wrapper/ar.sh",
 ])
 
@@ -27,6 +28,7 @@ filegroup(
     name = "toolchain_wrapper",
     srcs = [
         "wrapper/ar.sh",
+        "wrapper/g++.sh",
         "wrapper/gcc.sh",
         "wrapper/ld.sh",
     ],
@@ -61,7 +63,7 @@ cc_tool(
 cc_tool(
     name = "g++",
     # src = "@musl-linux-aarch64//:bin/aarch64-buildroot-linux-musl-g++.br_real",
-    src = ":wrapper/gcc.sh",
+    src = ":wrapper/g++.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",

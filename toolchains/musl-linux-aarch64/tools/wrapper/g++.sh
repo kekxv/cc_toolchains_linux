@@ -6,7 +6,7 @@
 # ==========================================
 
 # 定义工具名称
-GCC_NAME="aarch64-buildroot-linux-musl-gcc.br_real"
+GCC_NAME="aarch64-buildroot-linux-musl-g++.br_real"
 AR_NAME="aarch64-buildroot-linux-musl-ar"
 AS_NAME="aarch64-buildroot-linux-musl-as"
 

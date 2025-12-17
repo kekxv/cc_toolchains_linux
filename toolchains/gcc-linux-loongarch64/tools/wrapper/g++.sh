@@ -6,7 +6,7 @@
 # ==========================================
 
 # 定义工具名称
-GCC_NAME="loongarch64-linux-gnu-gcc"
+GCC_NAME="loongarch64-linux-gnu-g++"
 AR_NAME="loongarch64-linux-gnu-ar"
 AS_NAME="loongarch64-linux-gnu-as"
 

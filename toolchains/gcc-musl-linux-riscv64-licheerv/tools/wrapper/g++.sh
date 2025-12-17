@@ -6,9 +6,9 @@
 # ==========================================
 
 # 定义工具名称
-GCC_NAME="aarch64-buildroot-linux-musl-gcc.br_real"
-AR_NAME="aarch64-buildroot-linux-musl-ar"
-AS_NAME="aarch64-buildroot-linux-musl-as"
+GCC_NAME="riscv64-unknown-linux-musl-g++"
+AR_NAME="riscv64-unknown-linux-musl-ar"
+AS_NAME="riscv64-unknown-linux-musl-as"
 
 # 1. 环境准备
 #    EXECROOT: Bazel 执行时的根目录 (物理路径)
@@ -88,9 +88,25 @@ trap 'rm -rf "${TEMP_DIR}"' EXIT
 ln -sf "${REAL_AR}" "${TEMP_DIR}/ar"
 ln -sf "${REAL_AS}" "${TEMP_DIR}/as"
 
+
+# 6. 参数处理
+#    构建新的参数数组，移除不兼容的 flag (如 -EL)
+ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        # 忽略大小端参数，ar 通常不需要，或者是误传进来的
+        -std=c++20)
+            ;;
+        *)
+            # 其他参数原样保留
+            ARGS+=("$arg")
+            ;;
+    esac
+done
+
 # 7. 调用 GCC
 #    -B: 指定编译器查找辅助工具(as, ld等)的优先搜索路径
 #    使用相对路径 "${REAL_GCC_INVOKE}" 调用，无需后续处理 .d 文件
 exec "${REAL_GCC_INVOKE}" \
     -B "${TEMP_DIR}" \
-    "$@"
+    "${ARGS[@]}"

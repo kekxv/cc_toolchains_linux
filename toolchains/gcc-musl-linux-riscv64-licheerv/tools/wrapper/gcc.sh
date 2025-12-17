@@ -6,7 +6,7 @@
 # ==========================================
 
 # 定义工具名称
-GCC_NAME="riscv64-unknown-linux-musl-g++"
+GCC_NAME="riscv64-unknown-linux-musl-gcc"
 AR_NAME="riscv64-unknown-linux-musl-ar"
 AS_NAME="riscv64-unknown-linux-musl-as"
 
