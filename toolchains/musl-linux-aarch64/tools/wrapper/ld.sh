@@ -82,9 +82,86 @@ trap 'rm -rf "${TEMP_LD_DIR}"' EXIT
 # 创建软链接
 ln -sf "${REAL_LD}" "${TEMP_LD_DIR}/ld"
 
-# 7. 调用 GCC
-#    -B: 指定编译器查找工具(ld)的搜索路径
-#    使用相对路径 "${REAL_GCC_INVOKE}" 调用
-exec "${REAL_GCC_INVOKE}" \
-    -B "${TEMP_LD_DIR}" \
+
+# 4.1 解析参数找到 sysroot 路径
+#     Parse arguments to find the sysroot path.
+SYSROOT_PATH=""
+for arg in "$@"; do
+    if [[ "$arg" == --sysroot=* ]]; then
+        SYSROOT_PATH="${arg#*=}"
+        break
+    fi
+done
+
+# 存放修复后库文件的目录
+# Directory to store fixed library files.
+FIXED_LIB_DIR="${TEMP_DIR}/fixed_lib"
+mkdir -p "${FIXED_LIB_DIR}"
+
+# 4.2 定义修复函数
+#     Define the fix function.
+fix_linker_script() {
+    local src_file="$1"
+
+    # 只有文件存在时才处理
+    # Process only if the file exists.
+    if [[ -f "${src_file}" ]]; then
+        local file_name=$(basename "$src_file")
+        local dst_file="${FIXED_LIB_DIR}/${file_name}"
+
+        # 复制文件到临时目录 (避免修改只读的源文件)
+        # Copy file to temp dir (avoid modifying read-only source files).
+        cp "${src_file}" "${dst_file}"
+        chmod +w "${dst_file}"
+
+        # === 关键修正：按顺序替换路径 ===
+        # === Critical Fix: Replace paths in specific order ===
+
+        # 1. 先替换最长的路径前缀 (/usr/lib64/ 和 /usr/lib/)
+        #    这样可以避免把 /usr/lib/xxx 错误地变成 /usrlib/xxx 或 /usrxxx
+        # 1. Replace longest path prefixes first (/usr/lib64/ and /usr/lib/).
+        #    This prevents corrupting paths like /usr/lib/xxx into /usrlib/xxx.
+        sed -i 's|/usr/lib64/||g' "${dst_file}"
+        sed -i 's|/usr/lib/||g' "${dst_file}"
+
+        # 2. 再替换短的路径前缀 (/lib64/ 和 /lib/)
+        # 2. Then replace shorter path prefixes (/lib64/ and /lib/).
+        sed -i 's|/lib64/||g' "${dst_file}"
+        sed -i 's|/lib/||g' "${dst_file}"
+    fi
+}
+
+if [[ -n "${SYSROOT_PATH}" ]]; then
+    # 尝试修复 libm.so (数学库)
+    # Attempt to fix libm.so (Math library).
+    fix_linker_script "${SYSROOT_PATH}/usr/lib/libm.so"
+    fix_linker_script "${SYSROOT_PATH}/lib/libm.so"
+    fix_linker_script "${SYSROOT_PATH}/usr/lib64/libm.so"
+
+    # 尝试修复 libc.so (C 标准库)
+    # Attempt to fix libc.so (C Standard library).
+    fix_linker_script "${SYSROOT_PATH}/usr/lib/libc.so"
+    fix_linker_script "${SYSROOT_PATH}/lib/libc.so"
+    fix_linker_script "${SYSROOT_PATH}/usr/lib64/libc.so"
+fi
+
+# ==============================================================================
+# 5. 调用 GCC 进行链接
+#    Invoke GCC to perform linking.
+# ==============================================================================
+
+EXTRA_ARGS=()
+
+# 如果有修复后的库，将该目录加入搜索路径 (-L)
+# If fixed libraries exist, add their directory to the search path (-L).
+if [[ -d "${FIXED_LIB_DIR}" ]]; then
+    EXTRA_ARGS+=("-L${FIXED_LIB_DIR}")
+fi
+
+# -no-canonical-prefixes: 防止 GCC 将路径展开为绝对路径
+# -no-canonical-prefixes: Prevents GCC from resolving paths to absolute paths.
+# -B: 指向包含 'ld' 软链接的目录 / Points to the dir containing the 'ld' symlink.
+exec "${REAL_GCC}" \
+    -B "${TEMP_BIN_DIR}" \
+    "${EXTRA_ARGS[@]}" \
     "$@"
