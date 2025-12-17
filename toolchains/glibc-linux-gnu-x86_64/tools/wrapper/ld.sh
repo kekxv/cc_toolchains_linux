@@ -2,30 +2,27 @@
 
 # ==========================================
 # 动态查找 GCC 路径并修复 ld 调用的 Wrapper
-# (修复 Absolute Path Inclusion 问题)
+# (修复 Absolute Path Inclusion & Sysroot 问题)
 # ==========================================
 
-# 设置工具链名称 (根据你提供的脚本)
+# 1. 设置工具链名称
 GCC_NAME="x86_64-buildroot-linux-gnu-g++"
 LD_NAME="x86_64-buildroot-linux-gnu-ld"
 
-# 1. 获取物理路径（解决符号链接和 /proc/self/cwd 问题）
-#    EXECROOT: Bazel 执行时的根目录 (通常是 sandbox 的 execroot/_main)
+# 2. 获取基础环境路径
+#    EXECROOT: Bazel 执行时的根目录
 EXECROOT=$(pwd -P)
-#    CURRENT_DIR: 脚本文件所在的目录
 CURRENT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
-# 2. 智能查找 external 目录 (优化部分)
-#    逻辑：从脚本所在目录开始向上遍历，直到找到一个包含 "external" 子目录的文件夹。
-#    这兼容了脚本在 external 内部、外部、或者 toolchains 目录下的所有情况。
+# 3. 智能查找 external 目录
+#    从脚本目录向上查找，直到找到 external 目录
 ROOT_PATH=""
 SEARCH_DIR="${CURRENT_DIR}"
 
-# 优先检查当前工作目录下的 external (最常见情况，速度最快)
+# 优先检查当前目录下的 external (最快)
 if [[ -d "${EXECROOT}/external" ]]; then
     ROOT_PATH="${EXECROOT}/external"
 else
-    # 向上递归查找
     while [[ "${SEARCH_DIR}" != "/" ]]; do
         if [[ -d "${SEARCH_DIR}/external" ]]; then
             ROOT_PATH="${SEARCH_DIR}/external"
@@ -40,55 +37,58 @@ if [[ -z "${ROOT_PATH}" ]]; then
     exit 1
 fi
 
-# 3. 在 external 目录下查找真正的编译器 (获取绝对路径)
-#    -maxdepth 5: 限制搜索深度，防止扫描整个目录树
-#    -print -quit: 找到第一个匹配项立即停止
-REAL_GCC_ABS=$(find -L "${ROOT_PATH}" -maxdepth 8 -name "${GCC_NAME}" -type f -print -quit)
+# 4. 查找真正的编译器 (绝对路径)
+#    注意：这里增加了排除逻辑，防止找到脚本自己(如果脚本同名)或死循环
+REAL_GCC_ABS=$(find -L "${ROOT_PATH}" -maxdepth 8 -name "${GCC_NAME}" -type f ! -path "*wrapper*" -print -quit)
 
 if [[ -z "${REAL_GCC_ABS}" ]]; then
     echo "ERROR: [ld.sh] Could not find ${GCC_NAME} in ${ROOT_PATH}" >&2
     exit 1
 fi
 
-# 4. 【关键修复】将绝对路径转换为相对路径
-#    Bazel 为了保证构建的一致性(Hermetic)，要求编译器生成的依赖文件(.d)不能包含绝对路径。
-#    如果通过绝对路径调用 GCC，它就会生成绝对路径依赖，导致报错。
-#    因此，我们必须计算出 "external/..." 这样的相对路径来调用它。
-
+# 5. 计算相对路径调用 (满足 Bazel Hermetic 要求)
 if [[ "${REAL_GCC_ABS}" == "${EXECROOT}"* ]]; then
-    # 从绝对路径中切掉 Execroot 前缀
     REL_PATH="${REAL_GCC_ABS#$EXECROOT}"
-    # 去掉开头的 '/'
     REAL_GCC_INVOKE="${REL_PATH#/}"
 else
-    # 如果编译器不在 execroot 下（非常罕见），只能回退到绝对路径
     REAL_GCC_INVOKE="${REAL_GCC_ABS}"
 fi
 
-# 5. 推导 LD 的路径 (绝对路径即可，因为这是内部调用，Bazel 不关心)
+# 6. 推导 LD 路径 (绝对路径)
 TOOLCHAIN_BIN_DIR=$(dirname "${REAL_GCC_ABS}")
 REAL_LD="${TOOLCHAIN_BIN_DIR}/${LD_NAME}"
 
-# 检查 LD 是否存在
 if [[ ! -f "${REAL_LD}" ]]; then
     echo "ERROR: [ld.sh] Found GCC at ${REAL_GCC_ABS} but LD not found at ${REAL_LD}" >&2
     exit 1
 fi
 
-# 6. 创建临时目录并建立 'ld' 软链接
-#    这是为了欺骗 GCC (作为 driver)，让它在 -B 目录下能找到一个名字叫 'ld' 的文件
-#    GCC 发现 -B 目录有 'ld'，就会调用它，而不是去调用系统的 /usr/bin/ld
-TEMP_LD_DIR=$(mktemp -d)
+# 7. 【关键修复 1】处理参数：将相对路径 Sysroot 转换为绝对路径
+#    这解决了 Linker Script 中绝对路径 (/usr/lib/...) 无法被相对路径 Sysroot 正确重定位的问题
+FINAL_ARGS=()
+for arg in "$@"; do
+    if [[ "$arg" == --sysroot=* ]]; then
+        SYSROOT_VAL="${arg#--sysroot=}"
+        # 如果不是以 / 开头，说明是相对路径，加上 EXECROOT
+        if [[ "$SYSROOT_VAL" != /* ]]; then
+            FINAL_ARGS+=("--sysroot=${EXECROOT}/${SYSROOT_VAL}")
+        else
+            FINAL_ARGS+=("$arg")
+        fi
+    else
+        FINAL_ARGS+=("$arg")
+    fi
+done
 
-# 注册清理函数：脚本退出时删除临时目录
-trap 'rm -rf "${TEMP_LD_DIR}"' EXIT
+# 8. 创建临时目录并建立 'ld' 软链接
+#TEMP_LD_DIR=$(mktemp -d)
+#trap 'rm -rf "${TEMP_LD_DIR}"' EXIT
+#ln -sf "${REAL_LD}" "${TEMP_LD_DIR}/ld"
 
-# 创建软链接： ${TEMP_LD_DIR}/ld -> 真正的长名字 ld
-ln -sf "${REAL_LD}" "${TEMP_LD_DIR}/ld"
-
-# 7. 调用 GCC 进行链接
-#    -B: 优先在临时目录查找工具（从而找到我们伪造的 ld 软链接）
-#    使用相对路径 "${REAL_GCC_INVOKE}" 调用
+# 9. 调用 GCC
+#    -no-canonical-prefixes: 防止 GCC 解析软链接后的物理路径，保持相对路径调用结构
+#    -B: 指向包含伪造 ld 的目录
 exec "${REAL_GCC_INVOKE}" \
-    -B "${TEMP_LD_DIR}" \
-    "$@"
+    -no-canonical-prefixes \
+    -B "${TOOLCHAIN_BIN_DIR}/../x86_64-buildroot-linux-gnu/" \
+    "${FINAL_ARGS[@]}"
