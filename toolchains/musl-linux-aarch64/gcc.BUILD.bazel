@@ -71,6 +71,7 @@ filegroup(
 filegroup(
     name = "multicall_support_files",
     srcs = glob([
+        "aarch64-buildroot-linux-musl/bin/*",
         "libexec/**/*",
     ]),
 )
