@@ -8,8 +8,6 @@ cmake(
         "FMT_TEST": "OFF",
         "FMT_DOC": "OFF",
         "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$$<$$<CONFIG:Debug>:Debug>",
-        "CMAKE_C_COMPILER_WORKS": "TRUE",
-        "CMAKE_CXX_COMPILER_WORKS": "TRUE",
         "CMAKE_BUILD_TYPE": "RELEASE",
     },
     generate_crosstool_file = True,

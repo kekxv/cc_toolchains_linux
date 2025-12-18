@@ -1,13 +1,12 @@
 #!/bin/bash
 
-# ==========================================
-# 动态查找 GCC 路径并修复 ld 调用的 Wrapper
-# (修复 Absolute Path Inclusion 问题)
-# ==========================================
+# ==============================================================================
+# 动态查找 GCC 并实时修复 Sysroot 路径问题的 Wrapper
+# Wrapper to dynamically find GCC and fix Sysroot path issues on the fly.
+# ==============================================================================
 
 # 定义工具名称
 GCC_NAME="arm-rockchip830-linux-uclibcgnueabihf-g++"
-LD_NAME="arm-rockchip830-linux-uclibcgnueabihf-ld"
 
 # 1. 环境准备
 #    EXECROOT: Bazel 执行时的根目录 (物理路径)
@@ -61,31 +60,23 @@ else
     REAL_GCC_INVOKE="${REAL_GCC_ABS}"
 fi
 
-# 5. 推导 LD 的路径 (用于 Wrapper 内部欺骗)
-#    这里可以使用绝对路径，因为它是被 GCC 内部调用的
-TOOLCHAIN_BIN_DIR=$(dirname "${REAL_GCC_ABS}")
-REAL_LD="${TOOLCHAIN_BIN_DIR}/${LD_NAME}"
 
-# 检查 LD 是否存在
-if [[ ! -f "${REAL_LD}" ]]; then
-    echo "ERROR: [ld.sh] Found GCC at ${REAL_GCC_ABS} but LD not found at ${REAL_LD}" >&2
-    exit 1
-fi
-
-# 6. 创建临时目录并建立软链接
-#    这是为了欺骗 GCC (driver)，让它在 -B 目录下优先找到我们的 ld
-TEMP_LD_DIR=$(mktemp -d)
-
-# 注册清理函数：脚本无论如何退出(成功或失败)，都删除临时目录
-trap 'rm -rf "${TEMP_LD_DIR}"' EXIT
-
-# 创建软链接
-ln -sf "${REAL_LD}" "${TEMP_LD_DIR}/ld"
-ln -sf "${REAL_LD}.bfd" "${TEMP_LD_DIR}/ld.bfd"
+# ==============================================================================
+# 新增：参数过滤逻辑
+# 目的：移除 loongarch 编译器不支持的 -std=c++20 参数
+# ==============================================================================
+ARGS_FILTERED=()
+for arg in "$@"; do
+    if [[ "$arg" == "-std=c++20" ]]; then
+        # 如果你想替换成兼容的参数(如c++2a)，可以在这里修改，现在是直接忽略
+        continue
+    fi
+    ARGS_FILTERED+=("$arg")
+done
 
 # 7. 调用 GCC
 #    -B: 指定编译器查找工具(ld)的搜索路径
 #    使用相对路径 "${REAL_GCC_INVOKE}" 调用
+#    注意：这里使用了 "${ARGS_FILTERED[@]}" 替代了 "$@"
 exec "${REAL_GCC_INVOKE}" \
-    -B "${TEMP_LD_DIR}" \
-    "$@"
+    "${ARGS_FILTERED[@]}"

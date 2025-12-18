@@ -20,7 +20,7 @@ cc_toolchain(
         "//toolchains/gcc-ulibc-linux-armv7l-luckfox/args:linux_sysroot",
         "//toolchains/args:no_absolute_paths_for_builtins",
         "//toolchains/args:c-warnings",
-        "//toolchains/args:warnings",
+        # "//toolchains/args:warnings",
     ],
     enabled_features = [
         "@rules_cc//cc/toolchains/args:experimental_replace_legacy_action_config_features",

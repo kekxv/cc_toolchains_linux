@@ -1,0 +1,27 @@
+diff --color -urN x86_64-buildroot-linux-gnu/sysroot/usr/lib/libc.so x86_64-buildroot-linux-gnu/sysroot/usr/lib/libc.so
+--- x86_64-buildroot-linux-gnu/sysroot/usr/lib/libc.so	2024-06-27 09:41:50
++++ x86_64-buildroot-linux-gnu/sysroot/usr/lib/libc.so	2025-12-18 12:41:53
+@@ -2,4 +2,4 @@
+    Use the shared library, but some functions are only in
+    the static library, so try that secondarily.  */
+ OUTPUT_FORMAT(elf64-x86-64)
+-GROUP ( /lib64/libc.so.6 /usr/lib64/libc_nonshared.a  AS_NEEDED ( /lib64/ld-linux-x86-64.so.2 ) )
++GROUP ( libc.so.6 libc_nonshared.a  AS_NEEDED ( ld-linux-x86-64.so.2 ) )
+diff --color -urN x86_64-buildroot-linux-gnu/sysroot/usr/lib/libm.a x86_64-buildroot-linux-gnu/sysroot/usr/lib/libm.a
+--- x86_64-buildroot-linux-gnu/sysroot/usr/lib/libm.a	2024-06-27 09:41:52
++++ x86_64-buildroot-linux-gnu/sysroot/usr/lib/libm.a	2025-12-18 12:40:52
+@@ -1,4 +1,4 @@
+ /* GNU ld script
+ */
+ OUTPUT_FORMAT(elf64-x86-64)
+-GROUP ( /usr/lib64/libm-2.36.a /usr/lib64/libmvec.a )
++GROUP ( libm-2.36.a libmvec.a )
+diff --color -urN x86_64-buildroot-linux-gnu/sysroot/usr/lib/libm.so x86_64-buildroot-linux-gnu/sysroot/usr/lib/libm.so
+--- x86_64-buildroot-linux-gnu/sysroot/usr/lib/libm.so	2024-06-27 09:41:52
++++ x86_64-buildroot-linux-gnu/sysroot/usr/lib/libm.so	2025-12-18 12:40:25
+@@ -1,4 +1,4 @@
+ /* GNU ld script
+ */
+ OUTPUT_FORMAT(elf64-x86-64)
+-GROUP ( /lib64/libm.so.6  AS_NEEDED ( /lib64/libmvec.so.1 ) )
++GROUP ( libm.so.6  AS_NEEDED ( libmvec.so.1 ) )

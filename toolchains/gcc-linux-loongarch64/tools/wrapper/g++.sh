@@ -7,8 +7,6 @@
 
 # 定义工具名称
 GCC_NAME="loongarch64-linux-gnu-g++"
-AR_NAME="loongarch64-linux-gnu-ar"
-AS_NAME="loongarch64-linux-gnu-as"
 
 # 1. 环境准备
 EXECROOT=$(pwd -P)
@@ -51,24 +49,6 @@ else
     REAL_GCC_INVOKE="${REAL_GCC_ABS}"
 fi
 
-# 5. 推导 ar 和 as 并建立软链接
-TOOLCHAIN_BIN_DIR=$(dirname "${REAL_GCC_ABS}")
-REAL_AR="${TOOLCHAIN_BIN_DIR}/${AR_NAME}"
-REAL_AS="${TOOLCHAIN_BIN_DIR}/${AS_NAME}"
-
-if [[ ! -f "${REAL_AR}" ]] || [[ ! -f "${REAL_AS}" ]]; then
-    echo "ERROR: [g++.sh] Helper tools not found." >&2
-    exit 1
-fi
-
-TEMP_DIR=$(mktemp -d)
-trap 'rm -rf "${TEMP_DIR}"' EXIT
-
-ln -sf "${REAL_AR}" "${TEMP_DIR}/ar"
-ln -sf "${REAL_AS}" "${TEMP_DIR}/as"
-
-# 6. 参数处理 & 捕获依赖文件路径 (-MF)
-# 我们需要找到 Bazel 传递给 GCC 的 -MF 参数，以便后续修改生成的 .d 文件
 ARGS=()
 DEP_FILE=""
 NEXT_IS_DEP=false

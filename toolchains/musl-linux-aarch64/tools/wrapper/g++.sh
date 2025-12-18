@@ -7,8 +7,6 @@
 
 # 定义工具名称
 GCC_NAME="aarch64-buildroot-linux-musl-g++.br_real"
-AR_NAME="aarch64-buildroot-linux-musl-ar"
-AS_NAME="aarch64-buildroot-linux-musl-as"
 
 # 1. 环境准备
 #    EXECROOT: Bazel 执行时的根目录 (物理路径)
@@ -63,34 +61,5 @@ else
     REAL_GCC_INVOKE="${REAL_GCC_ABS}"
 fi
 
-# 5. 推导 ar 和 as 的路径
-#    用于在临时目录创建软链接，欺骗 GCC 驱动程序
-TOOLCHAIN_BIN_DIR=$(dirname "${REAL_GCC_ABS}")
-REAL_AR="${TOOLCHAIN_BIN_DIR}/${AR_NAME}"
-REAL_AS="${TOOLCHAIN_BIN_DIR}/${AS_NAME}"
-
-# 检查 AR/AS 是否存在
-if [[ ! -f "${REAL_AR}" ]]; then
-    echo "ERROR: [g++.sh] Found GCC at ${REAL_GCC_ABS} but AR not found at ${REAL_AR}" >&2
-    exit 1
-fi
-if [[ ! -f "${REAL_AS}" ]]; then
-    echo "ERROR: [g++.sh] Found GCC at ${REAL_GCC_ABS} but AS not found at ${REAL_AS}" >&2
-    exit 1
-fi
-
-# 6. 创建临时目录并建立软链接
-#    这是为了让 GCC 在 -B 路径下找到名字叫 'ar' 和 'as' 的工具
-TEMP_DIR=$(mktemp -d)
-trap 'rm -rf "${TEMP_DIR}"' EXIT
-
-# 创建软链接 (短名字 -> 长名字)
-ln -sf "${REAL_AR}" "${TEMP_DIR}/ar"
-ln -sf "${REAL_AS}" "${TEMP_DIR}/as"
-
-# 7. 调用 GCC
-#    -B: 指定编译器查找辅助工具(as, ld等)的优先搜索路径
-#    使用相对路径 "${REAL_GCC_INVOKE}" 调用，无需后续处理 .d 文件
 exec "${REAL_GCC_INVOKE}" \
-    -B "${TEMP_DIR}" \
     "$@"

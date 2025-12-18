@@ -7,7 +7,6 @@
 
 # 定义工具名称
 GCC_NAME="aarch64-buildroot-linux-musl-g++.br_real"
-LD_NAME="aarch64-buildroot-linux-musl-ld"
 
 # 1. 环境准备
 #    EXECROOT: Bazel 执行时的根目录 (物理路径)
@@ -61,30 +60,5 @@ else
     REAL_GCC_INVOKE="${REAL_GCC_ABS}"
 fi
 
-# 5. 推导 LD 的路径 (用于 Wrapper 内部欺骗)
-#    这里可以使用绝对路径，因为它是被 GCC 内部调用的
-TOOLCHAIN_BIN_DIR=$(dirname "${REAL_GCC_ABS}")
-REAL_LD="${TOOLCHAIN_BIN_DIR}/${LD_NAME}"
-
-# 检查 LD 是否存在
-if [[ ! -f "${REAL_LD}" ]]; then
-    echo "ERROR: [ld.sh] Found GCC at ${REAL_GCC_ABS} but LD not found at ${REAL_LD}" >&2
-    exit 1
-fi
-
-# 6. 创建临时目录并建立软链接
-#    这是为了欺骗 GCC (driver)，让它在 -B 目录下优先找到我们的 ld
-TEMP_LD_DIR=$(mktemp -d)
-
-# 注册清理函数：脚本无论如何退出(成功或失败)，都删除临时目录
-trap 'rm -rf "${TEMP_LD_DIR}"' EXIT
-
-# 创建软链接
-ln -sf "${REAL_LD}" "${TEMP_LD_DIR}/ld"
-
-# 7. 调用 GCC
-#    -B: 指定编译器查找工具(ld)的搜索路径
-#    使用相对路径 "${REAL_GCC_INVOKE}" 调用
 exec "${REAL_GCC_INVOKE}" \
-    -B "${TEMP_LD_DIR}" \
     "$@"

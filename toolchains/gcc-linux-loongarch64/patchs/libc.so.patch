@@ -1,0 +1,8 @@
+--- loongarch64-linux-gnu/sysroot/usr/lib64/libc.so	2024-11-15 00:00:00
++++ loongarch64-linux-gnu/sysroot/usr/lib64/libc.so	2025-12-18 13:09:34
+@@ -2,4 +2,4 @@
+    Use the shared library, but some functions are only in
+    the static library, so try that secondarily.  */
+ OUTPUT_FORMAT(elf64-loongarch)
+-GROUP ( /lib64/libc.so.6 /usr/lib64/libc_nonshared.a  AS_NEEDED ( /lib64/ld.so.1 ) )
++GROUP ( libc.so.6 libc_nonshared.a  AS_NEEDED ( ld.so.1 ) )

@@ -86,8 +86,8 @@ cc_tool(
 
 cc_tool(
     name = "ar",
-    #src = "@gcc-linux-loongarch64//:bin/loongarch64-linux-gnu-ar",
-    src = ":wrapper/ar.sh",
+    src = "@gcc-linux-loongarch64//:bin/loongarch64-linux-gnu-ar",
+    #src = ":wrapper/ar.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",

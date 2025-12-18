@@ -13,6 +13,9 @@ http_archive(
     name = "gcc-linux-x86_64",
     build_file = "//toolchains/glibc-linux-gnu-x86_64:gcc.BUILD.bazel",
     integrity = "sha256-hq7+2gJWgu+FkI/x0cimrps7ueq5cDMQ2jCzdNu2DWE=",
+    patches = [
+        "//toolchains/glibc-linux-gnu-x86_64:patchs/usr.lib.patch",
+    ],
     strip_prefix = "",
     type = "tar.bz2",
     url = "https://github.com/ClangTools/clang-binaries/releases/download/linux-gcc12-x86_64-buildroot-2022.11.3-glibc.2.36/linux-gcc12-x86_64-buildroot-2022.11.3-gnu-glibc_2.36.tar.bz2",
@@ -48,23 +51,10 @@ http_archive(
     name = "gcc-linux-loongarch64",
     build_file = "//toolchains/gcc-linux-loongarch64:gcc.BUILD.bazel",
     integrity = "sha256-+znReLZ2D0mFLoRSwJK/wXapjDFmzhO31wDj2p6Z4jc=",
+    patches = [
+        "//toolchains/gcc-linux-loongarch64:patchs/libc.so.patch",
+    ],
     strip_prefix = "loongson-gnu-toolchain-8.3-x86_64-loongarch64-linux-gnu-rc1.6",
     type = "tar.xz",
     url = "https://github.com/ClangTools/clang-binaries/releases/download/loongson-gnu-toolchain-8.3-x86_64-loongarch64-linux-gnu-rc1.6/loongson-gnu-toolchain-8.3-x86_64-loongarch64-linux-gnu-rc1.6.tar.xz",
-)
-
-register_execution_platforms(
-    "//:linux-x86_64",
-    "//:linux-aarch64",
-    "//:linux-riscv64",
-    "//:linux-loongarch64",
-    "//:linux-armv7l-luckfox",
-)
-
-register_toolchains(
-    "//:linux-x86_64-toolchain",
-    "//:linux-aarch64-toolchain",
-    "//:linux-riscv64-licheerv-toolchain",
-    "//:linux-loongarch64-toolchain",
-    "//:linux-armv7l-luckfox-toolchain",
 )

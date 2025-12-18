@@ -19,6 +19,7 @@ licenses(["notice"])
 
 exports_files([
     "toolchains.MODULE.bazel",
+    "patchs/usr.lib.patch",
     "gcc.BUILD.bazel",
 ])
 

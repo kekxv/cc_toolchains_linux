@@ -72,6 +72,7 @@ filegroup(
     name = "multicall_support_files",
     srcs = glob([
         "bin/**",
+        "riscv64-unknown-linux-musl/bin/**",
         "libexec/**/*",
     ]),
 )

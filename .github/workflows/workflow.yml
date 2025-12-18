@@ -2,11 +2,11 @@ name: workflow.yml
 
 on:
   push:
-    branches: [ main ]
-    paths-ignore:        # 如果提交中仅包含这些文件，不触发工作流
+    branches: [ main , develop ]
+    paths-ignore: # 如果提交中仅包含这些文件，不触发工作流
       - 'README.md'
   pull_request:
-    paths-ignore:        # 如果 PR 中仅包含这些文件，不触发工作流
+    paths-ignore: # 如果 PR 中仅包含这些文件，不触发工作流
       - 'README.md'
 
 # 这里的并发控制可以防止同一个分支多次提交导致大量无用构建
