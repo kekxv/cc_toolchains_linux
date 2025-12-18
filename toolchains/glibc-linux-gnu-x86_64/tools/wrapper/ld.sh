@@ -2,7 +2,7 @@
 
 # ==========================================
 # 动态查找 GCC 路径并修复 ld 调用的 Wrapper
-# (修复 Absolute Path Inclusion & Sysroot 问题)
+# (修复 Linker Script 绝对路径解析问题)
 # ==========================================
 
 # 1. 设置工具链名称
@@ -10,16 +10,13 @@ GCC_NAME="x86_64-buildroot-linux-gnu-g++"
 LD_NAME="x86_64-buildroot-linux-gnu-ld"
 
 # 2. 获取基础环境路径
-#    EXECROOT: Bazel 执行时的根目录
 EXECROOT=$(pwd -P)
 CURRENT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 # 3. 智能查找 external 目录
-#    从脚本目录向上查找，直到找到 external 目录
 ROOT_PATH=""
 SEARCH_DIR="${CURRENT_DIR}"
 
-# 优先检查当前目录下的 external (最快)
 if [[ -d "${EXECROOT}/external" ]]; then
     ROOT_PATH="${EXECROOT}/external"
 else
@@ -38,7 +35,6 @@ if [[ -z "${ROOT_PATH}" ]]; then
 fi
 
 # 4. 查找真正的编译器 (绝对路径)
-#    注意：这里增加了排除逻辑，防止找到脚本自己(如果脚本同名)或死循环
 REAL_GCC_ABS=$(find -L "${ROOT_PATH}" -maxdepth 8 -name "${GCC_NAME}" -type f -print -quit)
 
 if [[ -z "${REAL_GCC_ABS}" ]]; then
@@ -64,35 +60,31 @@ if [[ ! -f "${REAL_LD}" ]]; then
 fi
 
 # ==========================================
-# [新增] 7. 自动提取 Sysroot 路径
+# 7. 自动提取并强制应用 Sysroot 绝对路径
 # ==========================================
-# 根据 Log 结构：
-# GCC: .../bin/x86_64-buildroot-linux-gnu-g++
-# Sysroot: .../x86_64-buildroot-linux-gnu/sysroot
-# 逻辑：回退到工具链根目录，然后查找名为 sysroot 的目录
 TOOLCHAIN_ROOT_DIR=$(dirname "${TOOLCHAIN_BIN_DIR}")
 
-# 查找 sysroot 目录 (使用 find 确保准确性，防止中间目录名变化)
+# 查找 sysroot 目录
 REAL_SYSROOT=$(find "${TOOLCHAIN_ROOT_DIR}" -type d -name "sysroot" -print -quit)
 
-# 如果找不到，作为容错，不加 -B 或者报错，这里选择仅当找到时才设置变量
-B_FLAG=""
+EXTRA_FLAGS=""
 if [[ -n "${REAL_SYSROOT}" ]]; then
-    B_FLAG="-B${REAL_SYSROOT}"
+    # -B: 告诉 GCC 在这个目录下找 crt1.o, crti.o 以及 ld 本身
+    # --sysroot: 告诉 ld 所有以 / 开头的库路径都要在这个目录下找
+    # 关键点：这里必须传【绝对路径】，否则 Linker Script 里的 /usr/lib64 会解析到宿主机
+    EXTRA_FLAGS="-B${REAL_SYSROOT} --sysroot=${REAL_SYSROOT}"
 fi
 # ==========================================
 
-
 # 9. 调用 GCC
-#    -no-canonical-prefixes: 防止 GCC 解析软链接后的物理路径
-#    -B: 将找到的 Sysroot 路径添加为搜索前缀 (用于查找 crt1.o, ld 等)
-#    "$@": 透传 Bazel 传入的参数
+# 注意：我们将 ${EXTRA_FLAGS} 放在 "$@" 之后。
+# 这样我们的绝对路径 --sysroot 会覆盖 Bazel 传入的相对路径 --sysroot。
 echo "${REAL_GCC_INVOKE}" \
     -no-canonical-prefixes \
-    "${B_FLAG}" \
-    "$@"
+    "$@" \
+    ${EXTRA_FLAGS}
 
 exec "${REAL_GCC_INVOKE}" \
     -no-canonical-prefixes \
-    "${B_FLAG}" \
-    "$@"
+    "$@" \
+    ${EXTRA_FLAGS}
