@@ -78,7 +78,7 @@ if [[ -n "${REAL_SYSROOT}" ]]; then
 
     for lib_name in "${LIBS_TO_FIX[@]}"; do
         # 在 sysroot 中查找该文件 (find 能够处理 lib vs lib64 的差异)
-        found_lib=$(find "${REAL_SYSROOT}" -name "${lib_name}" -type f -print -quit)
+        found_lib=$(find -L "${REAL_SYSROOT}" -name "${lib_name}" -type f -print -quit)
 
         if [[ -n "${found_lib}" ]]; then
             # 检查是否为 Linker Script (包含 GROUP 关键字)
