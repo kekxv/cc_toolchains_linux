@@ -39,7 +39,7 @@ fi
 
 # 4. 查找真正的编译器 (绝对路径)
 #    注意：这里增加了排除逻辑，防止找到脚本自己(如果脚本同名)或死循环
-REAL_GCC_ABS=$(find -L "${ROOT_PATH}" -maxdepth 8 -name "${GCC_NAME}" -type f ! -path "*wrapper*" -print -quit)
+REAL_GCC_ABS=$(find -L "${ROOT_PATH}" -maxdepth 8 -name "${GCC_NAME}" -type f -print -quit)
 
 if [[ -z "${REAL_GCC_ABS}" ]]; then
     echo "ERROR: [ld.sh] Could not find ${GCC_NAME} in ${ROOT_PATH}" >&2
@@ -80,15 +80,9 @@ for arg in "$@"; do
     fi
 done
 
-# 8. 创建临时目录并建立 'ld' 软链接
-#TEMP_LD_DIR=$(mktemp -d)
-#trap 'rm -rf "${TEMP_LD_DIR}"' EXIT
-#ln -sf "${REAL_LD}" "${TEMP_LD_DIR}/ld"
-
 # 9. 调用 GCC
 #    -no-canonical-prefixes: 防止 GCC 解析软链接后的物理路径，保持相对路径调用结构
 #    -B: 指向包含伪造 ld 的目录
 exec "${REAL_GCC_INVOKE}" \
     -no-canonical-prefixes \
-    -B "${TOOLCHAIN_BIN_DIR}/../x86_64-buildroot-linux-gnu/" \
     "${FINAL_ARGS[@]}"
