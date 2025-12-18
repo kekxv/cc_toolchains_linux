@@ -63,29 +63,36 @@ if [[ ! -f "${REAL_LD}" ]]; then
     exit 1
 fi
 
-# 7. 【关键修复 1】处理参数：将相对路径 Sysroot 转换为绝对路径
-#    这解决了 Linker Script 中绝对路径 (/usr/lib/...) 无法被相对路径 Sysroot 正确重定位的问题
-FINAL_ARGS=()
-for arg in "$@"; do
-    if [[ "$arg" == --sysroot=* ]]; then
-        SYSROOT_VAL="${arg#--sysroot=}"
-        # 如果不是以 / 开头，说明是相对路径，加上 EXECROOT
-        if [[ "$SYSROOT_VAL" != /* ]]; then
-            FINAL_ARGS+=("--sysroot=${EXECROOT}/${SYSROOT_VAL}")
-        else
-            FINAL_ARGS+=("$arg")
-        fi
-    else
-        FINAL_ARGS+=("$arg")
-    fi
-done
+# ==========================================
+# [新增] 7. 自动提取 Sysroot 路径
+# ==========================================
+# 根据 Log 结构：
+# GCC: .../bin/x86_64-buildroot-linux-gnu-g++
+# Sysroot: .../x86_64-buildroot-linux-gnu/sysroot
+# 逻辑：回退到工具链根目录，然后查找名为 sysroot 的目录
+TOOLCHAIN_ROOT_DIR=$(dirname "${TOOLCHAIN_BIN_DIR}")
+
+# 查找 sysroot 目录 (使用 find 确保准确性，防止中间目录名变化)
+REAL_SYSROOT=$(find "${TOOLCHAIN_ROOT_DIR}" -type d -name "sysroot" -print -quit)
+
+# 如果找不到，作为容错，不加 -B 或者报错，这里选择仅当找到时才设置变量
+B_FLAG=""
+if [[ -n "${REAL_SYSROOT}" ]]; then
+    B_FLAG="-B${REAL_SYSROOT}"
+fi
+# ==========================================
+
 
 # 9. 调用 GCC
-#    -no-canonical-prefixes: 防止 GCC 解析软链接后的物理路径，保持相对路径调用结构
-#    -B: 指向包含伪造 ld 的目录
+#    -no-canonical-prefixes: 防止 GCC 解析软链接后的物理路径
+#    -B: 将找到的 Sysroot 路径添加为搜索前缀 (用于查找 crt1.o, ld 等)
+#    "$@": 透传 Bazel 传入的参数
 echo "${REAL_GCC_INVOKE}" \
     -no-canonical-prefixes \
-    "${FINAL_ARGS[@]}"
+    "${B_FLAG}" \
+    "$@"
+
 exec "${REAL_GCC_INVOKE}" \
     -no-canonical-prefixes \
-    "${FINAL_ARGS[@]}"
+    "${B_FLAG}" \
+    "$@"
