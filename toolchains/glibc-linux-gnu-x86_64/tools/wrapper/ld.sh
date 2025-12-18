@@ -9,23 +9,21 @@
 GCC_NAME="x86_64-buildroot-linux-gnu-g++"
 LD_NAME="x86_64-buildroot-linux-gnu-ld"
 
-# 1. 获取物理路径（解决符号链接和 /proc/self/cwd 问题）
-#    EXECROOT: Bazel 执行时的根目录 (通常是 sandbox 的 execroot/_main)
+# 1. 环境准备
+#    EXECROOT: Bazel 执行时的根目录 (物理路径)
 EXECROOT=$(pwd -P)
-#    CURRENT_DIR: 脚本文件所在的目录
+#    CURRENT_DIR: 脚本文件所在的目录 (物理路径)
 CURRENT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
-# 2. 智能查找 external 目录 (优化部分)
-#    逻辑：从脚本所在目录开始向上遍历，直到找到一个包含 "external" 子目录的文件夹。
-#    这兼容了脚本在 external 内部、外部、或者 toolchains 目录下的所有情况。
+# 2. 智能查找 external 目录
+#    逻辑：优先检查当前目录下的 external (最快)，如果没找到则从脚本目录向上遍历。
 ROOT_PATH=""
 SEARCH_DIR="${CURRENT_DIR}"
 
-# 优先检查当前工作目录下的 external (最常见情况，速度最快)
 if [[ -d "${EXECROOT}/external" ]]; then
     ROOT_PATH="${EXECROOT}/external"
 else
-    # 向上递归查找
+    # 向上递归查找，直到找到包含 external 的目录或到达根目录
     while [[ "${SEARCH_DIR}" != "/" ]]; do
         if [[ -d "${SEARCH_DIR}/external" ]]; then
             ROOT_PATH="${SEARCH_DIR}/external"
@@ -40,8 +38,8 @@ if [[ -z "${ROOT_PATH}" ]]; then
     exit 1
 fi
 
-# 3. 在 external 目录下查找真正的编译器 (获取绝对路径)
-#    -maxdepth 5: 限制搜索深度，防止扫描整个目录树
+# 3. 查找真正的编译器 (获取绝对路径以验证存在)
+#    -maxdepth 5: 限制搜索深度，防止扫描太深
 #    -print -quit: 找到第一个匹配项立即停止
 REAL_GCC_ABS=$(find -L "${ROOT_PATH}" -maxdepth 8 -name "${GCC_NAME}" -type f -print -quit)
 
@@ -51,21 +49,20 @@ if [[ -z "${REAL_GCC_ABS}" ]]; then
 fi
 
 # 4. 【关键修复】将绝对路径转换为相对路径
-#    Bazel 为了保证构建的一致性(Hermetic)，要求编译器生成的依赖文件(.d)不能包含绝对路径。
-#    如果通过绝对路径调用 GCC，它就会生成绝对路径依赖，导致报错。
-#    因此，我们必须计算出 "external/..." 这样的相对路径来调用它。
-
+#    Bazel 要求编译器产生的依赖文件(.d)必须包含相对路径。
+#    如果这里用绝对路径调用 GCC，它生成的依赖就是绝对路径，导致构建失败。
 if [[ "${REAL_GCC_ABS}" == "${EXECROOT}"* ]]; then
-    # 从绝对路径中切掉 Execroot 前缀
+    # 移除 Execroot 前缀
     REL_PATH="${REAL_GCC_ABS#$EXECROOT}"
-    # 去掉开头的 '/'
+    # 移除开头的斜杠，得到 external/repo_name/.../g++
     REAL_GCC_INVOKE="${REL_PATH#/}"
 else
-    # 如果编译器不在 execroot 下（非常罕见），只能回退到绝对路径
+    # 极其罕见的情况：编译器不在 execroot 下
     REAL_GCC_INVOKE="${REAL_GCC_ABS}"
 fi
 
-# 5. 推导 LD 的路径 (绝对路径即可，因为这是内部调用，Bazel 不关心)
+# 5. 推导 LD 的路径 (用于 Wrapper 内部欺骗)
+#    这里可以使用绝对路径，因为它是被 GCC 内部调用的
 TOOLCHAIN_BIN_DIR=$(dirname "${REAL_GCC_ABS}")
 REAL_LD="${TOOLCHAIN_BIN_DIR}/${LD_NAME}"
 
@@ -75,20 +72,98 @@ if [[ ! -f "${REAL_LD}" ]]; then
     exit 1
 fi
 
-# 6. 创建临时目录并建立 'ld' 软链接
-#    这是为了欺骗 GCC (作为 driver)，让它在 -B 目录下能找到一个名字叫 'ld' 的文件
-#    GCC 发现 -B 目录有 'ld'，就会调用它，而不是去调用系统的 /usr/bin/ld
+# 6. 创建临时目录并建立软链接
+#    这是为了欺骗 GCC (driver)，让它在 -B 目录下优先找到我们的 ld
 TEMP_LD_DIR=$(mktemp -d)
 
-# 注册清理函数：脚本退出时删除临时目录
+# 注册清理函数：脚本无论如何退出(成功或失败)，都删除临时目录
 trap 'rm -rf "${TEMP_LD_DIR}"' EXIT
 
-# 创建软链接： ${TEMP_LD_DIR}/ld -> 真正的长名字 ld
+# 创建软链接
 ln -sf "${REAL_LD}" "${TEMP_LD_DIR}/ld"
 
-# 7. 调用 GCC 进行链接
-#    -B: 优先在临时目录查找工具（从而找到我们伪造的 ld 软链接）
-#    使用相对路径 "${REAL_GCC_INVOKE}" 调用
+
+# 4.1 解析参数找到 sysroot 路径
+#     Parse arguments to find the sysroot path.
+SYSROOT_PATH=""
+for arg in "$@"; do
+    if [[ "$arg" == --sysroot=* ]]; then
+        SYSROOT_PATH="${arg#*=}"
+        break
+    fi
+done
+
+# 存放修复后库文件的目录
+# Directory to store fixed library files.
+FIXED_LIB_DIR="${TEMP_LD_DIR}/fixed_lib"
+mkdir -p "${FIXED_LIB_DIR}"
+
+# 4.2 定义修复函数
+#     Define the fix function.
+fix_linker_script() {
+    local src_file="$1"
+
+    # 只有文件存在时才处理
+    # Process only if the file exists.
+    if [[ -f "${src_file}" ]]; then
+        local file_name=$(basename "$src_file")
+        local dst_file="${FIXED_LIB_DIR}/${file_name}"
+
+        # 复制文件到临时目录 (避免修改只读的源文件)
+        # Copy file to temp dir (avoid modifying read-only source files).
+        cp "${src_file}" "${dst_file}"
+        chmod +w "${dst_file}"
+
+        # === 关键修正：按顺序替换路径 ===
+        # === Critical Fix: Replace paths in specific order ===
+
+        # 1. 先替换最长的路径前缀 (/usr/lib64/ 和 /usr/lib/)
+        #    这样可以避免把 /usr/lib/xxx 错误地变成 /usrlib/xxx 或 /usrxxx
+        # 1. Replace longest path prefixes first (/usr/lib64/ and /usr/lib/).
+        #    This prevents corrupting paths like /usr/lib/xxx into /usrlib/xxx.
+        sed -i 's|/usr/lib64/||g' "${dst_file}"
+        sed -i 's|/usr/lib/||g' "${dst_file}"
+
+        # 2. 再替换短的路径前缀 (/lib64/ 和 /lib/)
+        # 2. Then replace shorter path prefixes (/lib64/ and /lib/).
+        sed -i 's|/lib64/||g' "${dst_file}"
+        sed -i 's|/lib/||g' "${dst_file}"
+    fi
+}
+
+if [[ -n "${SYSROOT_PATH}" ]]; then
+    # 尝试修复 libm.so (数学库)
+    # Attempt to fix libm.so (Math library).
+    fix_linker_script "${SYSROOT_PATH}/usr/lib/libm.so"
+    fix_linker_script "${SYSROOT_PATH}/lib/libm.so"
+    fix_linker_script "${SYSROOT_PATH}/usr/lib64/libm.so"
+    fix_linker_script "${SYSROOT_PATH}/usr/lib/libm.a"
+    fix_linker_script "${SYSROOT_PATH}/lib/libm.a"
+    fix_linker_script "${SYSROOT_PATH}/usr/lib64/libm.a"
+
+    # 尝试修复 libc.so (C 标准库)
+    # Attempt to fix libc.so (C Standard library).
+    fix_linker_script "${SYSROOT_PATH}/usr/lib/libc.so"
+    fix_linker_script "${SYSROOT_PATH}/lib/libc.so"
+    fix_linker_script "${SYSROOT_PATH}/usr/lib64/libc.so"
+fi
+
+# ==============================================================================
+# 5. 调用 GCC 进行链接
+#    Invoke GCC to perform linking.
+# ==============================================================================
+
+EXTRA_ARGS=()
+
+# 如果有修复后的库，将该目录加入搜索路径 (-L)
+# If fixed libraries exist, add their directory to the search path (-L).
+if [[ -d "${FIXED_LIB_DIR}" ]]; then
+    EXTRA_ARGS+=("-L${FIXED_LIB_DIR}")
+fi
+
+# -no-canonical-prefixes: 防止 GCC 将路径展开为绝对路径
+# -no-canonical-prefixes: Prevents GCC from resolving paths to absolute paths.
+# -B: 指向包含 'ld' 软链接的目录 / Points to the dir containing the 'ld' symlink.
 exec "${REAL_GCC_INVOKE}" \
-    -B "${TEMP_LD_DIR}" \
+    "${EXTRA_ARGS[@]}" \
     "$@"
