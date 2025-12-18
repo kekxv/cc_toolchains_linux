@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # ==========================================
-# 动态查找 GCC 路径并修复 ld 调用的 Wrapper
-# (修复 Linker Script 绝对路径解析问题)
+# 动态查找 GCC 路径并修复 Linker Script (Wrapper)
 # ==========================================
 
 # 1. 设置工具链名称
@@ -42,7 +41,7 @@ if [[ -z "${REAL_GCC_ABS}" ]]; then
     exit 1
 fi
 
-# 5. 计算相对路径调用 (满足 Bazel Hermetic 要求)
+# 5. 计算相对路径调用 (Bazel Hermetic)
 if [[ "${REAL_GCC_ABS}" == "${EXECROOT}"* ]]; then
     REL_PATH="${REAL_GCC_ABS#$EXECROOT}"
     REAL_GCC_INVOKE="${REL_PATH#/}"
@@ -50,41 +49,77 @@ else
     REAL_GCC_INVOKE="${REAL_GCC_ABS}"
 fi
 
-# 6. 推导 LD 路径 (绝对路径)
+# 6. 推导工具链相关路径
 TOOLCHAIN_BIN_DIR=$(dirname "${REAL_GCC_ABS}")
-REAL_LD="${TOOLCHAIN_BIN_DIR}/${LD_NAME}"
-
-if [[ ! -f "${REAL_LD}" ]]; then
-    echo "ERROR: [ld.sh] Found GCC at ${REAL_GCC_ABS} but LD not found at ${REAL_LD}" >&2
-    exit 1
-fi
-
-# ==========================================
-# 7. 自动提取并强制应用 Sysroot 绝对路径
-# ==========================================
 TOOLCHAIN_ROOT_DIR=$(dirname "${TOOLCHAIN_BIN_DIR}")
 
 # 查找 sysroot 目录
 REAL_SYSROOT=$(find "${TOOLCHAIN_ROOT_DIR}" -type d -name "sysroot" -print -quit)
 
-EXTRA_FLAGS=""
-if [[ -n "${REAL_SYSROOT}" ]]; then
-    # -B: 告诉 GCC 在这个目录下找 crt1.o, crti.o 以及 ld 本身
-    # --sysroot: 告诉 ld 所有以 / 开头的库路径都要在这个目录下找
-    # 关键点：这里必须传【绝对路径】，否则 Linker Script 里的 /usr/lib64 会解析到宿主机
-    EXTRA_FLAGS="-B${REAL_SYSROOT} --sysroot=${REAL_SYSROOT}"
-fi
+# ==========================================
+# 7. [核心修复] 动态修补 Linker Script (.a 文件)
+# ==========================================
+# Buildroot 生成的 libm.a/libc.a 包含绝对路径 (如 /usr/lib64/libmvec.a)
+# 我们创建一个临时目录，把这些文件复制出来，用 sed 去掉绝对路径，
+# 然后用 -L 让 ld 优先读取修改后的文件。
 # ==========================================
 
-# 9. 调用 GCC
-# 注意：我们将 ${EXTRA_FLAGS} 放在 "$@" 之后。
-# 这样我们的绝对路径 --sysroot 会覆盖 Bazel 传入的相对路径 --sysroot。
+EXTRA_FLAGS=""
+
+if [[ -n "${REAL_SYSROOT}" ]]; then
+    # 1. 创建临时修补目录 (位于 execroot 下，确保 ld 能访问)
+    # 使用 $$ 加入 PID 防止并发冲突
+    FIX_DIR="${EXECROOT}/_bazel_fixed_libs_$$"
+    mkdir -p "${FIX_DIR}"
+
+    # 2. 需要检查和修复的库列表
+    # 通常 libc.a, libm.a, libpthread.a 是 Linker Script
+    LIBS_TO_FIX=("libc.a" "libm.a" "libpthread.a")
+
+    for lib_name in "${LIBS_TO_FIX[@]}"; do
+        # 在 sysroot 中查找该文件 (find 能够处理 lib vs lib64 的差异)
+        found_lib=$(find "${REAL_SYSROOT}" -name "${lib_name}" -type f -print -quit)
+
+        if [[ -n "${found_lib}" ]]; then
+            # 检查是否为 Linker Script (包含 GROUP 关键字)
+            if grep -q "GROUP" "${found_lib}"; then
+                # 复制并修改:
+                # 正则解释: s|/[^ ]*/([^/ ]+\.a)|\1|g
+                # 将 "/usr/lib64/libmvec.a" 替换为 "libmvec.a"
+                # 将 "/lib/libpthread.so.0" 替换为 "libpthread.so.0"
+                sed -E 's|/[^ )]*/([^/ )]+\.[a|so][^ )]*)|\1|g' "${found_lib}" > "${FIX_DIR}/${lib_name}"
+            fi
+        fi
+    done
+
+    # 3. 设置 Flags
+    # -B: 查找 crt*.o
+    # --sysroot: 查找库的基础路径
+    # -L: 优先在我们的 FIX_DIR 中查找 .a 文件 (以此劫持原始的坏文件)
+    EXTRA_FLAGS="-B${REAL_SYSROOT} --sysroot=${REAL_SYSROOT} -L${FIX_DIR}"
+
+    # 4. 注册清理函数 (Trap)，脚本退出时删除临时目录
+    trap "rm -rf ${FIX_DIR}" EXIT
+fi
+
+# ==========================================
+# 8. 执行 GCC
+# ==========================================
+
+# 将 EXTRA_FLAGS 放在 "$@" 之前或之后其实很讲究。
+# 放在 "$@" 之后能确保我们的 -L 优先级更高(如果 Bazel 没有强制指定其他 -L)。
+# 通常 GCC 遵循 "First match" 原则对于 -L，所以我们把 -L 放在最前面可能更稳妥？
+# 不，库的搜索顺序是按 -L 出现的顺序。
+# 我们希望 FIX_DIR 在 Sysroot 的隐式路径之前被搜索到。
+
+# 构建最终命令
+# 注意：我们将 EXTRA_FLAGS 分拆，确保 -L 能够生效
 echo "${REAL_GCC_INVOKE}" \
     -no-canonical-prefixes \
-    "$@" \
-    ${EXTRA_FLAGS}
+    ${EXTRA_FLAGS} \
+    "$@"
 
 exec "${REAL_GCC_INVOKE}" \
     -no-canonical-prefixes \
-    "$@" \
-    ${EXTRA_FLAGS}
+    ${EXTRA_FLAGS} \
+    "$@"
