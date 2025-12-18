@@ -83,6 +83,9 @@ done
 # 9. 调用 GCC
 #    -no-canonical-prefixes: 防止 GCC 解析软链接后的物理路径，保持相对路径调用结构
 #    -B: 指向包含伪造 ld 的目录
+echo "${REAL_GCC_INVOKE}" \
+    -no-canonical-prefixes \
+    "${FINAL_ARGS[@]}"
 exec "${REAL_GCC_INVOKE}" \
     -no-canonical-prefixes \
     "${FINAL_ARGS[@]}"
