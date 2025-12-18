@@ -1,24 +1,31 @@
 #!/bin/bash
 
 # ==========================================
-# 动态查找 GCC 路径并修复 Linker Script (Wrapper)
+# 动态查找 GCC 路径并修复 ld 调用的 Wrapper
+# (修复 Absolute Path Inclusion 问题)
 # ==========================================
 
-# 1. 设置工具链名称
+# 设置工具链名称 (根据你提供的脚本)
 GCC_NAME="x86_64-buildroot-linux-gnu-g++"
 LD_NAME="x86_64-buildroot-linux-gnu-ld"
 
-# 2. 获取基础环境路径
+# 1. 获取物理路径（解决符号链接和 /proc/self/cwd 问题）
+#    EXECROOT: Bazel 执行时的根目录 (通常是 sandbox 的 execroot/_main)
 EXECROOT=$(pwd -P)
+#    CURRENT_DIR: 脚本文件所在的目录
 CURRENT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
-# 3. 智能查找 external 目录
+# 2. 智能查找 external 目录 (优化部分)
+#    逻辑：从脚本所在目录开始向上遍历，直到找到一个包含 "external" 子目录的文件夹。
+#    这兼容了脚本在 external 内部、外部、或者 toolchains 目录下的所有情况。
 ROOT_PATH=""
 SEARCH_DIR="${CURRENT_DIR}"
 
+# 优先检查当前工作目录下的 external (最常见情况，速度最快)
 if [[ -d "${EXECROOT}/external" ]]; then
     ROOT_PATH="${EXECROOT}/external"
 else
+    # 向上递归查找
     while [[ "${SEARCH_DIR}" != "/" ]]; do
         if [[ -d "${SEARCH_DIR}/external" ]]; then
             ROOT_PATH="${SEARCH_DIR}/external"
@@ -33,7 +40,9 @@ if [[ -z "${ROOT_PATH}" ]]; then
     exit 1
 fi
 
-# 4. 查找真正的编译器 (绝对路径)
+# 3. 在 external 目录下查找真正的编译器 (获取绝对路径)
+#    -maxdepth 5: 限制搜索深度，防止扫描整个目录树
+#    -print -quit: 找到第一个匹配项立即停止
 REAL_GCC_ABS=$(find -L "${ROOT_PATH}" -maxdepth 8 -name "${GCC_NAME}" -type f -print -quit)
 
 if [[ -z "${REAL_GCC_ABS}" ]]; then
@@ -41,85 +50,45 @@ if [[ -z "${REAL_GCC_ABS}" ]]; then
     exit 1
 fi
 
-# 5. 计算相对路径调用 (Bazel Hermetic)
+# 4. 【关键修复】将绝对路径转换为相对路径
+#    Bazel 为了保证构建的一致性(Hermetic)，要求编译器生成的依赖文件(.d)不能包含绝对路径。
+#    如果通过绝对路径调用 GCC，它就会生成绝对路径依赖，导致报错。
+#    因此，我们必须计算出 "external/..." 这样的相对路径来调用它。
+
 if [[ "${REAL_GCC_ABS}" == "${EXECROOT}"* ]]; then
+    # 从绝对路径中切掉 Execroot 前缀
     REL_PATH="${REAL_GCC_ABS#$EXECROOT}"
+    # 去掉开头的 '/'
     REAL_GCC_INVOKE="${REL_PATH#/}"
 else
+    # 如果编译器不在 execroot 下（非常罕见），只能回退到绝对路径
     REAL_GCC_INVOKE="${REAL_GCC_ABS}"
 fi
 
-# 6. 推导工具链相关路径
+# 5. 推导 LD 的路径 (绝对路径即可，因为这是内部调用，Bazel 不关心)
 TOOLCHAIN_BIN_DIR=$(dirname "${REAL_GCC_ABS}")
-TOOLCHAIN_ROOT_DIR=$(dirname "${TOOLCHAIN_BIN_DIR}")
+REAL_LD="${TOOLCHAIN_BIN_DIR}/${LD_NAME}"
 
-# 查找 sysroot 目录
-REAL_SYSROOT=$(find "${TOOLCHAIN_ROOT_DIR}" -type d -name "sysroot" -print -quit)
-
-# ==========================================
-# 7. [核心修复] 动态修补 Linker Script (.a 文件)
-# ==========================================
-# Buildroot 生成的 libm.a/libc.a 包含绝对路径 (如 /usr/lib64/libmvec.a)
-# 我们创建一个临时目录，把这些文件复制出来，用 sed 去掉绝对路径，
-# 然后用 -L 让 ld 优先读取修改后的文件。
-# ==========================================
-
-EXTRA_FLAGS=""
-
-if [[ -n "${REAL_SYSROOT}" ]]; then
-    # 1. 创建临时修补目录 (位于 execroot 下，确保 ld 能访问)
-    # 使用 $$ 加入 PID 防止并发冲突
-    FIX_DIR="${EXECROOT}/_bazel_fixed_libs_$$"
-    mkdir -p "${FIX_DIR}"
-
-    # 2. 需要检查和修复的库列表
-    # 通常 libc.a, libm.a, libpthread.a 是 Linker Script
-    LIBS_TO_FIX=("libc.a" "libm.a" "libpthread.a")
-
-    for lib_name in "${LIBS_TO_FIX[@]}"; do
-        # 在 sysroot 中查找该文件 (find 能够处理 lib vs lib64 的差异)
-        found_lib=$(find -L "${REAL_SYSROOT}" -name "${lib_name}" -type f -print -quit)
-
-        if [[ -n "${found_lib}" ]]; then
-            # 检查是否为 Linker Script (包含 GROUP 关键字)
-            if grep -q "GROUP" "${found_lib}"; then
-                # 复制并修改:
-                # 正则解释: s|/[^ ]*/([^/ ]+\.a)|\1|g
-                # 将 "/usr/lib64/libmvec.a" 替换为 "libmvec.a"
-                # 将 "/lib/libpthread.so.0" 替换为 "libpthread.so.0"
-                sed -E 's|/[^ )]*/([^/ )]+\.[a|so][^ )]*)|\1|g' "${found_lib}" > "${FIX_DIR}/${lib_name}"
-            fi
-        fi
-    done
-
-    # 3. 设置 Flags
-    # -B: 查找 crt*.o
-    # --sysroot: 查找库的基础路径
-    # -L: 优先在我们的 FIX_DIR 中查找 .a 文件 (以此劫持原始的坏文件)
-    EXTRA_FLAGS="-B${REAL_SYSROOT} --sysroot=${REAL_SYSROOT} -L${FIX_DIR}"
-
-    # 4. 注册清理函数 (Trap)，脚本退出时删除临时目录
-    trap "rm -rf ${FIX_DIR}" EXIT
+# 检查 LD 是否存在
+if [[ ! -f "${REAL_LD}" ]]; then
+    echo "ERROR: [ld.sh] Found GCC at ${REAL_GCC_ABS} but LD not found at ${REAL_LD}" >&2
+    exit 1
 fi
 
-# ==========================================
-# 8. 执行 GCC
-# ==========================================
+# 6. 创建临时目录并建立 'ld' 软链接
+#    这是为了欺骗 GCC (作为 driver)，让它在 -B 目录下能找到一个名字叫 'ld' 的文件
+#    GCC 发现 -B 目录有 'ld'，就会调用它，而不是去调用系统的 /usr/bin/ld
+TEMP_LD_DIR=$(mktemp -d)
 
-# 将 EXTRA_FLAGS 放在 "$@" 之前或之后其实很讲究。
-# 放在 "$@" 之后能确保我们的 -L 优先级更高(如果 Bazel 没有强制指定其他 -L)。
-# 通常 GCC 遵循 "First match" 原则对于 -L，所以我们把 -L 放在最前面可能更稳妥？
-# 不，库的搜索顺序是按 -L 出现的顺序。
-# 我们希望 FIX_DIR 在 Sysroot 的隐式路径之前被搜索到。
+# 注册清理函数：脚本退出时删除临时目录
+trap 'rm -rf "${TEMP_LD_DIR}"' EXIT
 
-# 构建最终命令
-# 注意：我们将 EXTRA_FLAGS 分拆，确保 -L 能够生效
-echo "${REAL_GCC_INVOKE}" \
-    -no-canonical-prefixes \
-    ${EXTRA_FLAGS} \
-    "$@"
+# 创建软链接： ${TEMP_LD_DIR}/ld -> 真正的长名字 ld
+ln -sf "${REAL_LD}" "${TEMP_LD_DIR}/ld"
 
+# 7. 调用 GCC 进行链接
+#    -B: 优先在临时目录查找工具（从而找到我们伪造的 ld 软链接）
+#    使用相对路径 "${REAL_GCC_INVOKE}" 调用
 exec "${REAL_GCC_INVOKE}" \
-    -no-canonical-prefixes \
-    ${EXTRA_FLAGS} \
+    -B "${TEMP_LD_DIR}" \
     "$@"
