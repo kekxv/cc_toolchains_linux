@@ -51,6 +51,9 @@ http_archive(
     name = "gcc-linux-loongarch64",
     build_file = "//toolchains/gcc-linux-loongarch64:gcc.BUILD.bazel",
     integrity = "sha256-+znReLZ2D0mFLoRSwJK/wXapjDFmzhO31wDj2p6Z4jc=",
+    patches = [
+        "//toolchains/gcc-linux-loongarch64:patchs/libc.so.patch",
+    ],
     strip_prefix = "loongson-gnu-toolchain-8.3-x86_64-loongarch64-linux-gnu-rc1.6",
     type = "tar.xz",
     url = "https://github.com/ClangTools/clang-binaries/releases/download/loongson-gnu-toolchain-8.3-x86_64-loongarch64-linux-gnu-rc1.6/loongson-gnu-toolchain-8.3-x86_64-loongarch64-linux-gnu-rc1.6.tar.xz",
