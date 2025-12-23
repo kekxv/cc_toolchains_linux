@@ -8,7 +8,7 @@ bazel_dep(name = "cc_toolchains_linux", version = "0.0.1")
 
 git_override(
     module_name = "cc_toolchains_linux",
-    commit = "d97ccdf3a0252df672d93312fe4baefff74a6f30", # Check for the latest commit hash
+    commit = "c243fbc04a2701646382a437f32147caf2eba116", # Check for the latest commit hash
     remote = "https://github.com/kekxv/cc_toolchains_linux.git",
 )
 

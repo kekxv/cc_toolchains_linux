@@ -62,7 +62,7 @@ cc_tool(
 
 cc_tool(
     name = "g++",
-    # src = "@gcc-linux-loongarch64//:bin/loongarch64-linux-gnu-g++",
+    #src = "@gcc-linux-loongarch64//:bin/loongarch64-linux-gnu-g++",
     src = ":wrapper/g++.sh",
     data = [
         ":exec_platform_builtin_headers",
@@ -74,8 +74,8 @@ cc_tool(
 
 cc_tool(
     name = "ld",
-    #src = "@gcc-linux-loongarch64//:bin/loongarch64-linux-gnu-ld",
-    src = ":wrapper/ld.sh",
+    src = "@gcc-linux-loongarch64//:bin/loongarch64-linux-gnu-g++",
+    #src = ":wrapper/ld.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",

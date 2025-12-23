@@ -17,23 +17,6 @@ load("@rules_cc//cc/toolchains:tool_map.bzl", "cc_tool_map")
 
 licenses(["notice"])
 
-exports_files([
-    "wrapper/ld.sh",
-    "wrapper/gcc.sh",
-    "wrapper/g++.sh",
-    "wrapper/ar.sh",
-])
-
-filegroup(
-    name = "toolchain_wrapper",
-    srcs = [
-        "wrapper/ar.sh",
-        "wrapper/g++.sh",
-        "wrapper/gcc.sh",
-        "wrapper/ld.sh",
-    ],
-)
-
 cc_tool_map(
     name = "all_tools",
     tools = {
@@ -50,49 +33,42 @@ cc_tool_map(
 
 cc_tool(
     name = "gcc",
-    #src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-gcc",
-    src = ":wrapper/gcc.sh",
+    src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-gcc",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
         ":exec_platform_multicall_support_files",
-        ":toolchain_wrapper",
     ],
 )
 
 cc_tool(
     name = "g++",
-    # src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-g++",
-    src = ":wrapper/g++.sh",
+    src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-g++",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
         ":exec_platform_multicall_support_files",
-        ":toolchain_wrapper",
     ],
 )
 
 cc_tool(
     name = "ld",
-    #src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-ld",
-    src = ":wrapper/ld.sh",
+    # src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-ld",
+    src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-g++",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
         ":exec_platform_multicall_support_files",
-        ":toolchain_wrapper",
     ],
 )
 
 cc_tool(
     name = "ar",
-    #src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-ar",
-    src = ":wrapper/ar.sh",
+    src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-ar",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
         ":exec_platform_multicall_support_files",
-        ":toolchain_wrapper",
     ],
 )
 
