@@ -50,8 +50,8 @@ cc_tool_map(
 
 cc_tool(
     name = "gcc",
-    #src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-gcc",
-    src = ":wrapper/gcc.sh",
+    src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-gcc",
+    # src = ":wrapper/gcc.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
@@ -62,8 +62,8 @@ cc_tool(
 
 cc_tool(
     name = "g++",
-    # src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-g++",
-    src = ":wrapper/g++.sh",
+    src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-g++",
+    # src = ":wrapper/g++.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
@@ -74,8 +74,9 @@ cc_tool(
 
 cc_tool(
     name = "ld",
-    #src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-ld",
-    src = ":wrapper/ld.sh",
+    # src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-ld",
+    src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-g++",
+    # src = ":wrapper/ld.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
@@ -86,8 +87,8 @@ cc_tool(
 
 cc_tool(
     name = "ar",
-    #src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-ar",
-    src = ":wrapper/ar.sh",
+    src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-ar",
+    # src = ":wrapper/ar.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
