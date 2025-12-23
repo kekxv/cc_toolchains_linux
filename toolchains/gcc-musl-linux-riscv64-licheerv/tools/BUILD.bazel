@@ -50,8 +50,8 @@ cc_tool_map(
 
 cc_tool(
     name = "gcc",
-    #src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-gcc",
-    src = ":wrapper/gcc.sh",
+    src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-gcc",
+    # src = ":wrapper/gcc.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
@@ -62,8 +62,8 @@ cc_tool(
 
 cc_tool(
     name = "g++",
-    # src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-g++",
-    src = ":wrapper/g++.sh",
+    src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-g++",
+    # src = ":wrapper/g++.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
@@ -74,8 +74,9 @@ cc_tool(
 
 cc_tool(
     name = "ld",
-    #src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-ld",
-    src = ":wrapper/ld.sh",
+    # src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-ld",
+    src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-g++",
+    # src = ":wrapper/ld.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
@@ -86,8 +87,8 @@ cc_tool(
 
 cc_tool(
     name = "ar",
-    #src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-ar",
-    src = ":wrapper/ar.sh",
+    src = "@gcc-musl-linux-riscv64//:bin/riscv64-unknown-linux-musl-ar",
+    # src = ":wrapper/ar.sh",
     data = [
         ":exec_platform_builtin_headers",
         ":exec_platform_linker_builtins",
