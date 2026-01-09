@@ -62,7 +62,7 @@ config_setting(
 platform(
     name = "linux_armv7l-luckfox",
     constraint_values = [
-        "@platforms//cpu:armv7",
+        "@platforms//cpu:arm",
         "@platforms//os:linux",
     ],
     exec_properties = exec_properties,
@@ -71,7 +71,7 @@ platform(
 config_setting(
     name = "linux-armv7l-luckfox",
     constraint_values = [
-        "@platforms//cpu:armv7",
+        "@platforms//cpu:arm",
         "@platforms//os:linux",
     ],
     visibility = ["//visibility:public"],

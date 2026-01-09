@@ -38,7 +38,7 @@ toolchain(
     ],
     target_compatible_with = [
         "@platforms//os:linux",
-        "@platforms//cpu:armv7",
+        "@platforms//cpu:arm",
     ],
     toolchain = ":gcc",
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
