@@ -1,4 +1,13 @@
 # cc_toolchains_linux
+
+## bazelrc config
+
+```.bazelrc
+build:linux-remote                --remote_default_exec_properties=OSFamily=linux
+#build:linux-remote                --remote_default_exec_properties=container-image=docker://ghcr.io/catthehacker/ubuntu:act-22.04@sha256:5f9c35c25db1d51a8ddaae5c0ba8d3c163c5e9a4a6cc97acd409ac7eae239448
+build:linux-remote                --remote_instance_name=fuse
+```
+
 ## Installation
 
 Add the following to your `MODULE.bazel` to use this toolchain:
@@ -43,6 +52,7 @@ build:linux-loongarch64    --platforms=@cc_toolchains_linux//:linux-loongarch64
 ```
 
 shell:
+
 ```shell
 bazel build --config=linux-luckfox ...
 ```
