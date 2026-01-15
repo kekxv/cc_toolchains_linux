@@ -17,7 +17,7 @@ bazel_dep(name = "cc_toolchains_linux", version = "0.0.1")
 
 git_override(
     module_name = "cc_toolchains_linux",
-    commit = "c243fbc04a2701646382a437f32147caf2eba116", # Check for the latest commit hash
+    commit = "ece72159040f8a71a0d3527dc15cab9d87677edc", # Check for the latest commit hash
     remote = "https://github.com/kekxv/cc_toolchains_linux.git",
 )
 
@@ -32,7 +32,10 @@ register_execution_platforms(
 
 register_toolchains(
     "@cc_toolchains_linux//:linux-x86_64-toolchain",
-    "@cc_toolchains_linux//:linux-aarch64-toolchain",
+    # use musl
+    # "@cc_toolchains_linux//:linux-aarch64-musl-toolchain",
+    # use glibc
+    # "@cc_toolchains_linux//:linux-aarch64-glibc-toolchain",
     "@cc_toolchains_linux//:linux-riscv64-licheerv-toolchain",
     "@cc_toolchains_linux//:linux-loongarch64-toolchain",
     "@cc_toolchains_linux//:linux-armv7l-luckfox-toolchain",
