@@ -14,8 +14,13 @@ alias(
 )
 
 alias(
-    name = "linux-aarch64-toolchain",
+    name = "linux-aarch64-musl-toolchain",
     actual = "//toolchains/musl-linux-aarch64:toolchain",
+)
+
+alias(
+    name = "linux-aarch64-glibc-toolchain",
+    actual = "//toolchains/glibc-linux-aarch64:toolchain",
 )
 
 alias(
