@@ -139,8 +139,7 @@ jobs:
           echo "Before:"
           head -10 MODULE.bazel
           
-          # 方法1：只替换 module() 块内的 version（推荐）
-          # 匹配从 "module(" 开始到 ")" 结束的范围内的 version
+          # 只替换 module() 块内的 version
           sed -i '/^module(/,/)/ s/version = "[^"]*"/version = "'"${MODULE_VERSION}"'"/' MODULE.bazel
           
           echo ""
@@ -153,6 +152,7 @@ jobs:
           grep "bazel_dep" MODULE.bazel
 
       - name: Create source archive (exclude examples)
+        id: archive
         run: |
           ARCHIVE_NAME="${{ steps.release_info.outputs.archive_name }}"
           
@@ -191,6 +191,29 @@ jobs:
           echo "Verifying MODULE.bazel in archive:"
           tar -xzf "dist/${ARCHIVE_NAME}.tar.gz" -O "${ARCHIVE_NAME}/MODULE.bazel" | head -5
 
+      - name: Calculate integrity hash
+        id: integrity
+        run: |
+          ARCHIVE_NAME="${{ steps.release_info.outputs.archive_name }}"
+          
+          # 计算 tar.gz 的 SHA256 并转换为 SRI 格式 (sha256-base64)
+          TAR_GZ_HASH=$(sha256sum "dist/${ARCHIVE_NAME}.tar.gz" | cut -d' ' -f1)
+          TAR_GZ_INTEGRITY="sha256-$(echo -n "$TAR_GZ_HASH" | xxd -r -p | base64 -w0)"
+          
+          # 计算 zip 的 SHA256 并转换为 SRI 格式
+          ZIP_HASH=$(sha256sum "dist/${ARCHIVE_NAME}.zip" | cut -d' ' -f1)
+          ZIP_INTEGRITY="sha256-$(echo -n "$ZIP_HASH" | xxd -r -p | base64 -w0)"
+          
+          echo "tar_gz_integrity=$TAR_GZ_INTEGRITY" >> $GITHUB_OUTPUT
+          echo "zip_integrity=$ZIP_INTEGRITY" >> $GITHUB_OUTPUT
+          echo "tar_gz_sha256=$TAR_GZ_HASH" >> $GITHUB_OUTPUT
+          echo "zip_sha256=$ZIP_HASH" >> $GITHUB_OUTPUT
+          
+          echo ""
+          echo "=== Integrity Hashes ==="
+          echo "tar.gz: $TAR_GZ_INTEGRITY"
+          echo "zip:    $ZIP_INTEGRITY"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -219,13 +242,11 @@ jobs:
             - ✅ linux-riscv64
             - ✅ linux-loongarch64
             
-            ### 下载说明
-            | 文件 | 说明 |
-            |------|------|
-            | `*.tar.gz` | Linux/macOS 推荐 |
-            | `*.zip` | Windows 推荐 |
-            
-            > ⚠️ 源码包已排除 `examples` 目录
+            ### 文件校验
+            | 文件 | SHA256 | Integrity (SRI) |
+            |------|--------|-----------------|
+            | `${{ steps.release_info.outputs.archive_name }}.tar.gz` | `${{ steps.integrity.outputs.tar_gz_sha256 }}` | `${{ steps.integrity.outputs.tar_gz_integrity }}` |
+            | `${{ steps.release_info.outputs.archive_name }}.zip` | `${{ steps.integrity.outputs.zip_sha256 }}` | `${{ steps.integrity.outputs.zip_integrity }}` |
             
             ### 使用方法
             
@@ -234,8 +255,9 @@ jobs:
             bazel_dep(name = "cc_toolchains_linux", version = "${{ steps.release_info.outputs.module_version }}")
             archive_override(
                 module_name = "cc_toolchains_linux",
-                urls = ["https://github.com/${{ github.repository }}/releases/download/${{ steps.release_info.outputs.tag_name }}/${{ steps.release_info.outputs.archive_name }}.tar.gz"],
+                integrity = "${{ steps.integrity.outputs.tar_gz_integrity }}",
                 strip_prefix = "${{ steps.release_info.outputs.archive_name }}",
+                urls = ["https://github.com/${{ github.repository }}/releases/download/${{ steps.release_info.outputs.tag_name }}/${{ steps.release_info.outputs.archive_name }}.tar.gz"],
             )
             ```
             
@@ -245,10 +267,13 @@ jobs:
             
             http_archive(
                 name = "cc_toolchains_linux",
-                urls = ["https://github.com/${{ github.repository }}/releases/download/${{ steps.release_info.outputs.tag_name }}/${{ steps.release_info.outputs.archive_name }}.tar.gz"],
+                integrity = "${{ steps.integrity.outputs.tar_gz_integrity }}",
                 strip_prefix = "${{ steps.release_info.outputs.archive_name }}",
+                urls = ["https://github.com/${{ github.repository }}/releases/download/${{ steps.release_info.outputs.tag_name }}/${{ steps.release_info.outputs.archive_name }}.tar.gz"],
             )
             ```
+            
+            > ⚠️ 源码包已排除 `examples` 目录
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -256,12 +281,30 @@ jobs:
         run: |
           echo "## 🎉 Release Created Successfully!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Release Info" >> $GITHUB_STEP_SUMMARY
           echo "| 属性 | 值 |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| Tag | \`${{ steps.release_info.outputs.tag_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Version | \`${{ steps.release_info.outputs.module_version }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Pre-release | ${{ steps.release_info.outputs.is_prerelease }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Archive | \`${{ steps.release_info.outputs.archive_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔐 Integrity" >> $GITHUB_STEP_SUMMARY
+          echo "| 文件 | Integrity |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| tar.gz | \`${{ steps.integrity.outputs.tar_gz_integrity }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| zip | \`${{ steps.integrity.outputs.zip_integrity }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Quick Copy" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`starlark" >> $GITHUB_STEP_SUMMARY
+          echo "bazel_dep(name = \"cc_toolchains_linux\", version = \"${{ steps.release_info.outputs.module_version }}\")" >> $GITHUB_STEP_SUMMARY
+          echo "archive_override(" >> $GITHUB_STEP_SUMMARY
+          echo "    module_name = \"cc_toolchains_linux\"," >> $GITHUB_STEP_SUMMARY
+          echo "    integrity = \"${{ steps.integrity.outputs.tar_gz_integrity }}\"," >> $GITHUB_STEP_SUMMARY
+          echo "    strip_prefix = \"${{ steps.release_info.outputs.archive_name }}\"," >> $GITHUB_STEP_SUMMARY
+          echo "    urls = [\"https://github.com/${{ github.repository }}/releases/download/${{ steps.release_info.outputs.tag_name }}/${{ steps.release_info.outputs.archive_name }}.tar.gz\"]," >> $GITHUB_STEP_SUMMARY
+          echo ")" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📁 Files" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
