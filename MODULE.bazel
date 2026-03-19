@@ -31,6 +31,18 @@ http_archive(
 )
 
 http_archive(
+    name = "glibc-linux-aarch64",
+    build_file = "//toolchains/glibc-linux-aarch64:gcc.BUILD.bazel",
+    integrity = "sha256-hE3zyZUIAw7pyxFSyxglALuYFv8Blo8uGFkdUddmyec=",
+    patches = [
+        "//toolchains/glibc-linux-aarch64:patchs/usr.lib.patch",
+    ],
+    strip_prefix = "aarch64--glibc--stable-2022.08-1",
+    type = "tar.bz2",
+    url = "https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--glibc--stable-2022.08-1.tar.bz2",
+)
+
+http_archive(
     name = "gcc-ulibc-linux-armv7l-luckfox",
     build_file = "//toolchains/gcc-ulibc-linux-armv7l-luckfox:gcc.BUILD.bazel",
     integrity = "sha256-9q8QMKdGtKxr8ycKRtefYqISqdzH5mG0oVLOR2f4DuI=",

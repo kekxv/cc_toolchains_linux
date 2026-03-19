@@ -1,4 +1,13 @@
 # cc_toolchains_linux
+
+## bazelrc config
+
+```.bazelrc
+build:linux-remote                --remote_default_exec_properties=OSFamily=linux
+#build:linux-remote                --remote_default_exec_properties=container-image=docker://ghcr.io/catthehacker/ubuntu:act-22.04@sha256:5f9c35c25db1d51a8ddaae5c0ba8d3c163c5e9a4a6cc97acd409ac7eae239448
+build:linux-remote                --remote_instance_name=fuse
+```
+
 ## Installation
 
 Add the following to your `MODULE.bazel` to use this toolchain:
@@ -8,7 +17,7 @@ bazel_dep(name = "cc_toolchains_linux", version = "0.0.1")
 
 git_override(
     module_name = "cc_toolchains_linux",
-    commit = "c243fbc04a2701646382a437f32147caf2eba116", # Check for the latest commit hash
+    commit = "e0a3d9da91e3ef34a3636f8a91fc9481ed500725", # Check for the latest commit hash
     remote = "https://github.com/kekxv/cc_toolchains_linux.git",
 )
 
@@ -23,7 +32,10 @@ register_execution_platforms(
 
 register_toolchains(
     "@cc_toolchains_linux//:linux-x86_64-toolchain",
-    "@cc_toolchains_linux//:linux-aarch64-toolchain",
+    # use musl
+    # "@cc_toolchains_linux//:linux-aarch64-musl-toolchain",
+    # use glibc
+    # "@cc_toolchains_linux//:linux-aarch64-glibc-toolchain",
     "@cc_toolchains_linux//:linux-riscv64-licheerv-toolchain",
     "@cc_toolchains_linux//:linux-loongarch64-toolchain",
     "@cc_toolchains_linux//:linux-armv7l-luckfox-toolchain",
@@ -43,6 +55,7 @@ build:linux-loongarch64    --platforms=@cc_toolchains_linux//:linux-loongarch64
 ```
 
 shell:
+
 ```shell
 bazel build --config=linux-luckfox ...
 ```

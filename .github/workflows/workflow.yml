@@ -1,28 +1,29 @@
-name: workflow.yml
+name: CI & Release
 
 on:
   push:
     branches: [ main , develop ]
-    paths-ignore: # 如果提交中仅包含这些文件，不触发工作流
+    paths-ignore:
       - 'README.md'
   pull_request:
-    paths-ignore: # 如果 PR 中仅包含这些文件，不触发工作流
+    paths-ignore:
       - 'README.md'
 
-# 这里的并发控制可以防止同一个分支多次提交导致大量无用构建
+permissions:
+  contents: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   # Job 1: 基础 Linux 检查 (Host 环境)
-  # 只有这个通过了，后续才会执行
   host-linux-check:
     name: Check Host (Linux)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./examples # 全局设置工作目录
+        working-directory: ./examples
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -32,7 +33,6 @@ jobs:
         with:
           bazelisk-version: 1.x
           repository-cache: true
-          # 建议使用固定的 cache key 前缀，避免不同 job 之间缓存隔离导致重复下载
           disk-cache: ${{ github.workflow }}-linux
 
       - name: Run hello_world (Linux)
@@ -44,15 +44,14 @@ jobs:
   # Job 2: 交叉编译 (依赖 host-linux-check)
   cross-compile:
     name: Build ${{ matrix.platform }}
-    needs: host-linux-check # 关键：依赖上一步的结果
+    needs: host-linux-check
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./examples
     strategy:
-      fail-fast: false # 如果其中一个架构失败，不要取消另一个架构的构建
+      fail-fast: false
       matrix:
-        # 定义矩阵，并行执行 aarch64 和 luckfox
         include:
           - platform: linux-aarch64
             config: linux-aarch64
@@ -73,8 +72,6 @@ jobs:
           repository-cache: true
           disk-cache: ${{ github.workflow }}-${{ matrix.platform }}
 
-      # 这里使用了循环来构建多个目标，减少重复的 step 定义
-      # 同时也合并了 build 和 file check
       - name: Build and Check ${{ matrix.platform }}
         run: |
           TARGETS=":hello_world third-party/fmtlib:test_fmt"
@@ -83,14 +80,8 @@ jobs:
             echo "----------------------------------------"
             echo "Building $TARGET for ${{ matrix.platform }}..."
           
-            # Build
             bazel build --config=${{ matrix.config }} --keep_going $TARGET
           
-            # Check file type (找到对应的输出文件)
-            # 注意：Bazel 输出路径可能会根据配置变化，这里使用 bazel cquery 获取输出路径更稳健，
-            # 但为了保持您原有的逻辑简单，我们假设路径规则如下：
-          
-            # 将 target 转换为路径 (例如 :hello_world -> hello_world)
             BIN_PATH=$(bazel cquery --config=${{ matrix.config }} --output=files $TARGET | head -n 1)
           
             echo "===================>"
@@ -98,3 +89,224 @@ jobs:
             file "$BIN_PATH"
             echo "<==================="
           done
+
+  # Job 3: 源码打包发布 (依赖所有编译检查完成)
+  release:
+    name: Create Release
+    needs: cross-compile
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Generate version and release info
+        id: release_info
+        run: |
+          # 生成版本号：yyyyMMdd 格式
+          VERSION=$(date +'%Y%m%d')
+          
+          # 添加运行编号避免同一天重复发布的冲突
+          FULL_VERSION="${VERSION}.${{ github.run_number }}"
+          
+          # 获取仓库名称
+          REPO_NAME="${{ github.event.repository.name }}"
+          
+          echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+          echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
+          
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "tag_name=v${FULL_VERSION}" >> $GITHUB_OUTPUT
+            echo "release_name=Release ${FULL_VERSION}" >> $GITHUB_OUTPUT
+            echo "archive_name=${REPO_NAME}-${FULL_VERSION}" >> $GITHUB_OUTPUT
+            echo "module_version=${FULL_VERSION}" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "tag_name=v${FULL_VERSION}-dev" >> $GITHUB_OUTPUT
+            echo "release_name=Pre-release ${FULL_VERSION}" >> $GITHUB_OUTPUT
+            echo "archive_name=${REPO_NAME}-${FULL_VERSION}-dev" >> $GITHUB_OUTPUT
+            echo "module_version=${FULL_VERSION}-dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update MODULE.bazel version
+        run: |
+          MODULE_VERSION="${{ steps.release_info.outputs.module_version }}"
+          
+          echo "Updating MODULE.bazel version to: $MODULE_VERSION"
+          echo ""
+          echo "Before:"
+          head -10 MODULE.bazel
+          
+          # 只替换 module() 块内的 version
+          sed -i '/^module(/,/)/ s/version = "[^"]*"/version = "'"${MODULE_VERSION}"'"/' MODULE.bazel
+          
+          echo ""
+          echo "After:"
+          head -10 MODULE.bazel
+          
+          # 验证 bazel_dep 的版本没有被改变
+          echo ""
+          echo "Verify bazel_dep versions unchanged:"
+          grep "bazel_dep" MODULE.bazel
+
+      - name: Create source archive (exclude examples)
+        id: archive
+        run: |
+          ARCHIVE_NAME="${{ steps.release_info.outputs.archive_name }}"
+          
+          # 创建临时目录
+          mkdir -p dist
+          
+          # 使用 tar 打包，排除 examples 目录和其他不需要的文件
+          tar --exclude='examples' \
+              --exclude='.git' \
+              --exclude='.github' \
+              --exclude='*.lock' \
+              --exclude='dist' \
+              --transform "s,^,${ARCHIVE_NAME}/," \
+              -czvf "dist/${ARCHIVE_NAME}.tar.gz" \
+              .
+          
+          # 同时创建 zip 格式
+          mkdir -p "dist/${ARCHIVE_NAME}"
+          rsync -av --progress . "dist/${ARCHIVE_NAME}/" \
+              --exclude examples \
+              --exclude .git \
+              --exclude .github \
+              --exclude '*.lock' \
+              --exclude dist
+          
+          cd dist
+          zip -r "${ARCHIVE_NAME}.zip" "${ARCHIVE_NAME}"
+          rm -rf "${ARCHIVE_NAME}"
+          cd ..
+          
+          echo "Created archives:"
+          ls -lh dist/
+          
+          # 验证打包内容中的版本号
+          echo ""
+          echo "Verifying MODULE.bazel in archive:"
+          tar -xzf "dist/${ARCHIVE_NAME}.tar.gz" -O "${ARCHIVE_NAME}/MODULE.bazel" | head -5
+
+      - name: Calculate integrity hash
+        id: integrity
+        run: |
+          ARCHIVE_NAME="${{ steps.release_info.outputs.archive_name }}"
+          
+          # 计算 tar.gz 的 SHA256 并转换为 SRI 格式 (sha256-base64)
+          TAR_GZ_HASH=$(sha256sum "dist/${ARCHIVE_NAME}.tar.gz" | cut -d' ' -f1)
+          TAR_GZ_INTEGRITY="sha256-$(echo -n "$TAR_GZ_HASH" | xxd -r -p | base64 -w0)"
+          
+          # 计算 zip 的 SHA256 并转换为 SRI 格式
+          ZIP_HASH=$(sha256sum "dist/${ARCHIVE_NAME}.zip" | cut -d' ' -f1)
+          ZIP_INTEGRITY="sha256-$(echo -n "$ZIP_HASH" | xxd -r -p | base64 -w0)"
+          
+          echo "tar_gz_integrity=$TAR_GZ_INTEGRITY" >> $GITHUB_OUTPUT
+          echo "zip_integrity=$ZIP_INTEGRITY" >> $GITHUB_OUTPUT
+          echo "tar_gz_sha256=$TAR_GZ_HASH" >> $GITHUB_OUTPUT
+          echo "zip_sha256=$ZIP_HASH" >> $GITHUB_OUTPUT
+          
+          echo ""
+          echo "=== Integrity Hashes ==="
+          echo "tar.gz: $TAR_GZ_INTEGRITY"
+          echo "zip:    $ZIP_INTEGRITY"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag_name }}
+          name: ${{ steps.release_info.outputs.release_name }}
+          prerelease: ${{ steps.release_info.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+          body: |
+            ## 📦 ${{ steps.release_info.outputs.release_name }}
+            
+            ### 构建信息
+            | 属性 | 值 |
+            |------|-----|
+            | **版本** | `${{ steps.release_info.outputs.module_version }}` |
+            | **分支** | `${{ github.ref_name }}` |
+            | **提交** | `${{ github.sha }}` |
+            | **构建时间** | ${{ github.event.head_commit.timestamp }} |
+            
+            ### 支持的平台
+            - ✅ linux-x86_64 (Host)
+            - ✅ linux-aarch64
+            - ✅ linux-luckfox (armv7l)
+            - ✅ linux-riscv64
+            - ✅ linux-loongarch64
+            
+            ### 文件校验
+            | 文件 | SHA256 | Integrity (SRI) |
+            |------|--------|-----------------|
+            | `${{ steps.release_info.outputs.archive_name }}.tar.gz` | `${{ steps.integrity.outputs.tar_gz_sha256 }}` | `${{ steps.integrity.outputs.tar_gz_integrity }}` |
+            | `${{ steps.release_info.outputs.archive_name }}.zip` | `${{ steps.integrity.outputs.zip_sha256 }}` | `${{ steps.integrity.outputs.zip_integrity }}` |
+            
+            ### 使用方法
+            
+            **MODULE.bazel (Bzlmod 推荐)**
+            ```starlark
+            bazel_dep(name = "cc_toolchains_linux", version = "${{ steps.release_info.outputs.module_version }}")
+            archive_override(
+                module_name = "cc_toolchains_linux",
+                integrity = "${{ steps.integrity.outputs.tar_gz_integrity }}",
+                strip_prefix = "${{ steps.release_info.outputs.archive_name }}",
+                urls = ["https://github.com/${{ github.repository }}/releases/download/${{ steps.release_info.outputs.tag_name }}/${{ steps.release_info.outputs.archive_name }}.tar.gz"],
+            )
+            ```
+            
+            **WORKSPACE (传统方式)**
+            ```starlark
+            load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+            
+            http_archive(
+                name = "cc_toolchains_linux",
+                integrity = "${{ steps.integrity.outputs.tar_gz_integrity }}",
+                strip_prefix = "${{ steps.release_info.outputs.archive_name }}",
+                urls = ["https://github.com/${{ github.repository }}/releases/download/${{ steps.release_info.outputs.tag_name }}/${{ steps.release_info.outputs.archive_name }}.tar.gz"],
+            )
+            ```
+            
+            > ⚠️ 源码包已排除 `examples` 目录
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        run: |
+          echo "## 🎉 Release Created Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Release Info" >> $GITHUB_STEP_SUMMARY
+          echo "| 属性 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | \`${{ steps.release_info.outputs.tag_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${{ steps.release_info.outputs.module_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pre-release | ${{ steps.release_info.outputs.is_prerelease }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Archive | \`${{ steps.release_info.outputs.archive_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔐 Integrity" >> $GITHUB_STEP_SUMMARY
+          echo "| 文件 | Integrity |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| tar.gz | \`${{ steps.integrity.outputs.tar_gz_integrity }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| zip | \`${{ steps.integrity.outputs.zip_integrity }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Quick Copy" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`starlark" >> $GITHUB_STEP_SUMMARY
+          echo "bazel_dep(name = \"cc_toolchains_linux\", version = \"${{ steps.release_info.outputs.module_version }}\")" >> $GITHUB_STEP_SUMMARY
+          echo "archive_override(" >> $GITHUB_STEP_SUMMARY
+          echo "    module_name = \"cc_toolchains_linux\"," >> $GITHUB_STEP_SUMMARY
+          echo "    integrity = \"${{ steps.integrity.outputs.tar_gz_integrity }}\"," >> $GITHUB_STEP_SUMMARY
+          echo "    strip_prefix = \"${{ steps.release_info.outputs.archive_name }}\"," >> $GITHUB_STEP_SUMMARY
+          echo "    urls = [\"https://github.com/${{ github.repository }}/releases/download/${{ steps.release_info.outputs.tag_name }}/${{ steps.release_info.outputs.archive_name }}.tar.gz\"]," >> $GITHUB_STEP_SUMMARY
+          echo ")" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 Files" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -lh dist/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

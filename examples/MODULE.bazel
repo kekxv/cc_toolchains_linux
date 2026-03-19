@@ -20,7 +20,10 @@ register_execution_platforms(
 
 register_toolchains(
     "@cc_toolchains_linux//:linux-x86_64-toolchain",
-    "@cc_toolchains_linux//:linux-aarch64-toolchain",
+    # use musl
+    # "@cc_toolchains_linux//:linux-aarch64-musl-toolchain",
+    # use glibc
+    "@cc_toolchains_linux//:linux-aarch64-glibc-toolchain",
     "@cc_toolchains_linux//:linux-riscv64-licheerv-toolchain",
     "@cc_toolchains_linux//:linux-loongarch64-toolchain",
     "@cc_toolchains_linux//:linux-armv7l-luckfox-toolchain",

@@ -1,8 +1,8 @@
 package(default_visibility = ["//visibility:public"])
 
 exec_properties = {
-    "OSFamily": "linux",
-    "container-image": "docker://ghcr.io/catthehacker/ubuntu:act-22.04@sha256:5f9c35c25db1d51a8ddaae5c0ba8d3c163c5e9a4a6cc97acd409ac7eae239448",
+    # "OSFamily": "linux",
+    # "container-image": "docker://ghcr.io/catthehacker/ubuntu:act-22.04@sha256:5f9c35c25db1d51a8ddaae5c0ba8d3c163c5e9a4a6cc97acd409ac7eae239448",
 }
 
 platform(
@@ -62,7 +62,7 @@ config_setting(
 platform(
     name = "linux_armv7l-luckfox",
     constraint_values = [
-        "@platforms//cpu:armv7",
+        "@platforms//cpu:arm",
         "@platforms//os:linux",
     ],
     exec_properties = exec_properties,
@@ -71,7 +71,7 @@ platform(
 config_setting(
     name = "linux-armv7l-luckfox",
     constraint_values = [
-        "@platforms//cpu:armv7",
+        "@platforms//cpu:arm",
         "@platforms//os:linux",
     ],
     visibility = ["//visibility:public"],
