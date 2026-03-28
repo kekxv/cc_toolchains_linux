@@ -1,6 +1,6 @@
 module(
     name = "cc_toolchains_linux",
-    version = "0.0.1",
+    version = "20260328.53",
 )
 
 bazel_dep(name = "platforms", version = "1.0.0")
