@@ -17,7 +17,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Job 1: 基础 Linux 检查 (Host 环境)
+  # Job 1: 检查版本并决定是否需要发布 (仅 main 分支)
+  check-version:
+    name: Check Version
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      module_version: ${{ steps.check.outputs.module_version }}
+      tag_name: ${{ steps.check.outputs.tag_name }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract and check version
+        id: check
+        run: |
+          # 从 MODULE.bazel 提取版本号
+          MODULE_VERSION=$(grep -E '^\s*version\s*=' MODULE.bazel | head -1 | sed 's/.*version\s*=\s*"\([^"]*\)".*/\1/')
+          echo "module_version=$MODULE_VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=v$MODULE_VERSION" >> $GITHUB_OUTPUT
+
+          echo "Detected MODULE.bazel version: $MODULE_VERSION"
+
+          # 检查 tag 是否已存在
+          if git tag | grep -q "^v${MODULE_VERSION}$"; then
+            echo "Tag v${MODULE_VERSION} already exists locally"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            # 检查远程 tag
+            git fetch --tags origin
+            if git tag | grep -q "^v${MODULE_VERSION}$"; then
+              echo "Tag v${MODULE_VERSION} already exists remotely"
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            else
+              echo "Tag v${MODULE_VERSION} does not exist, will create release"
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  # Job 2: 基础 Linux 检查 (Host 环境)
   host-linux-check:
     name: Check Host (Linux)
     runs-on: ubuntu-latest
@@ -41,7 +83,7 @@ jobs:
       - name: Run fmtlib tests (Linux)
         run: bazel run --config=linux --test_output=errors third-party/fmtlib:test_fmt
 
-  # Job 2: 交叉编译 (依赖 host-linux-check)
+  # Job 3: 交叉编译 (依赖 host-linux-check)
   cross-compile:
     name: Build ${{ matrix.platform }}
     needs: host-linux-check
@@ -90,76 +132,64 @@ jobs:
             echo "<==================="
           done
 
-  # Job 3: 源码打包发布 (依赖所有编译检查完成)
+  # Job 4: 源码打包发布 (依赖所有编译检查完成和版本检查，仅 main 分支)
   release:
     name: Create Release
-    needs: cross-compile
+    needs: [cross-compile, check-version]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main')
+    if: needs.cross-compile.result == 'success' && needs.check-version.outputs.should_release == 'true'
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Generate version and release info
+      - name: Setup release info
         id: release_info
         run: |
-          # 生成版本号：yyyyMMdd 格式
-          VERSION=$(date +'%Y%m%d')
-          
-          # 添加运行编号避免同一天重复发布的冲突
-          FULL_VERSION="${VERSION}.${{ github.run_number }}"
-          
-          # 获取仓库名称
+          MODULE_VERSION="${{ needs.check-version.outputs.module_version }}"
+          TAG_NAME="${{ needs.check-version.outputs.tag_name }}"
           REPO_NAME="${{ github.event.repository.name }}"
-          
-          echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+
+          # main 分支发布，develop 分支不会触发 release
+          IS_PRERELEASE="false"
+          RELEASE_NAME="Release ${MODULE_VERSION}"
+          ARCHIVE_NAME="${REPO_NAME}-${MODULE_VERSION}"
+
+          echo "module_version=$MODULE_VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
-          
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
-            echo "tag_name=v${FULL_VERSION}" >> $GITHUB_OUTPUT
-            echo "release_name=Release ${FULL_VERSION}" >> $GITHUB_OUTPUT
-            echo "archive_name=${REPO_NAME}-${FULL_VERSION}" >> $GITHUB_OUTPUT
-            echo "module_version=${FULL_VERSION}" >> $GITHUB_OUTPUT
-          else
-            echo "is_prerelease=true" >> $GITHUB_OUTPUT
-            echo "tag_name=v${FULL_VERSION}-dev" >> $GITHUB_OUTPUT
-            echo "release_name=Pre-release ${FULL_VERSION}" >> $GITHUB_OUTPUT
-            echo "archive_name=${REPO_NAME}-${FULL_VERSION}-dev" >> $GITHUB_OUTPUT
-            echo "module_version=${FULL_VERSION}-dev" >> $GITHUB_OUTPUT
-          fi
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+          echo "archive_name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
 
-      - name: Update MODULE.bazel version
+          echo "=== Release Info ==="
+          echo "Version: $MODULE_VERSION"
+          echo "Tag: $TAG_NAME"
+          echo "Archive: $ARCHIVE_NAME"
+          echo "Pre-release: $IS_PRERELEASE"
+
+      - name: Create and push tag
         run: |
-          MODULE_VERSION="${{ steps.release_info.outputs.module_version }}"
-          
-          echo "Updating MODULE.bazel version to: $MODULE_VERSION"
-          echo ""
-          echo "Before:"
-          head -10 MODULE.bazel
-          
-          # 只替换 module() 块内的 version
-          sed -i '/^module(/,/)/ s/version = "[^"]*"/version = "'"${MODULE_VERSION}"'"/' MODULE.bazel
-          
-          echo ""
-          echo "After:"
-          head -10 MODULE.bazel
-          
-          # 验证 bazel_dep 的版本没有被改变
-          echo ""
-          echo "Verify bazel_dep versions unchanged:"
-          grep "bazel_dep" MODULE.bazel
+          TAG_NAME="${{ steps.release_info.outputs.tag_name }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG_NAME" -m "Release ${{ steps.release_info.outputs.module_version }}"
+          git push origin "$TAG_NAME"
+          echo "Tag $TAG_NAME created and pushed successfully"
 
-      - name: Create source archive (exclude examples)
+      - name: Create source archive (exclude examples and .github)
         id: archive
         run: |
           ARCHIVE_NAME="${{ steps.release_info.outputs.archive_name }}"
-          
+          MODULE_VERSION="${{ steps.release_info.outputs.module_version }}"
+          REPO_NAME="${{ steps.release_info.outputs.repo_name }}"
+
           # 创建临时目录
           mkdir -p dist
-          
-          # 使用 tar 打包，排除 examples 目录和其他不需要的文件
+
+          # 使用 tar 打包，排除不需要的文件
           tar --exclude='examples' \
               --exclude='.git' \
               --exclude='.github' \
@@ -168,7 +198,7 @@ jobs:
               --transform "s,^,${ARCHIVE_NAME}/," \
               -czvf "dist/${ARCHIVE_NAME}.tar.gz" \
               .
-          
+
           # 同时创建 zip 格式
           mkdir -p "dist/${ARCHIVE_NAME}"
           rsync -av --progress . "dist/${ARCHIVE_NAME}/" \
@@ -177,15 +207,15 @@ jobs:
               --exclude .github \
               --exclude '*.lock' \
               --exclude dist
-          
+
           cd dist
           zip -r "${ARCHIVE_NAME}.zip" "${ARCHIVE_NAME}"
           rm -rf "${ARCHIVE_NAME}"
           cd ..
-          
+
           echo "Created archives:"
           ls -lh dist/
-          
+
           # 验证打包内容中的版本号
           echo ""
           echo "Verifying MODULE.bazel in archive:"
@@ -195,20 +225,20 @@ jobs:
         id: integrity
         run: |
           ARCHIVE_NAME="${{ steps.release_info.outputs.archive_name }}"
-          
+
           # 计算 tar.gz 的 SHA256 并转换为 SRI 格式 (sha256-base64)
           TAR_GZ_HASH=$(sha256sum "dist/${ARCHIVE_NAME}.tar.gz" | cut -d' ' -f1)
           TAR_GZ_INTEGRITY="sha256-$(echo -n "$TAR_GZ_HASH" | xxd -r -p | base64 -w0)"
-          
+
           # 计算 zip 的 SHA256 并转换为 SRI 格式
           ZIP_HASH=$(sha256sum "dist/${ARCHIVE_NAME}.zip" | cut -d' ' -f1)
           ZIP_INTEGRITY="sha256-$(echo -n "$ZIP_HASH" | xxd -r -p | base64 -w0)"
-          
+
           echo "tar_gz_integrity=$TAR_GZ_INTEGRITY" >> $GITHUB_OUTPUT
           echo "zip_integrity=$ZIP_INTEGRITY" >> $GITHUB_OUTPUT
           echo "tar_gz_sha256=$TAR_GZ_HASH" >> $GITHUB_OUTPUT
           echo "zip_sha256=$ZIP_HASH" >> $GITHUB_OUTPUT
-          
+
           echo ""
           echo "=== Integrity Hashes ==="
           echo "tar.gz: $TAR_GZ_INTEGRITY"
@@ -226,7 +256,7 @@ jobs:
             dist/*.zip
           body: |
             ## 📦 ${{ steps.release_info.outputs.release_name }}
-            
+
             ### 构建信息
             | 属性 | 值 |
             |------|-----|
@@ -234,22 +264,22 @@ jobs:
             | **分支** | `${{ github.ref_name }}` |
             | **提交** | `${{ github.sha }}` |
             | **构建时间** | ${{ github.event.head_commit.timestamp }} |
-            
+
             ### 支持的平台
             - ✅ linux-x86_64 (Host)
             - ✅ linux-aarch64
             - ✅ linux-luckfox (armv7l)
             - ✅ linux-riscv64
             - ✅ linux-loongarch64
-            
+
             ### 文件校验
             | 文件 | SHA256 | Integrity (SRI) |
             |------|--------|-----------------|
             | `${{ steps.release_info.outputs.archive_name }}.tar.gz` | `${{ steps.integrity.outputs.tar_gz_sha256 }}` | `${{ steps.integrity.outputs.tar_gz_integrity }}` |
             | `${{ steps.release_info.outputs.archive_name }}.zip` | `${{ steps.integrity.outputs.zip_sha256 }}` | `${{ steps.integrity.outputs.zip_integrity }}` |
-            
+
             ### 使用方法
-            
+
             **MODULE.bazel (Bzlmod 推荐)**
             ```starlark
             bazel_dep(name = "cc_toolchains_linux", version = "${{ steps.release_info.outputs.module_version }}")
@@ -260,11 +290,11 @@ jobs:
                 urls = ["https://github.com/${{ github.repository }}/releases/download/${{ steps.release_info.outputs.tag_name }}/${{ steps.release_info.outputs.archive_name }}.tar.gz"],
             )
             ```
-            
+
             **WORKSPACE (传统方式)**
             ```starlark
             load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-            
+
             http_archive(
                 name = "cc_toolchains_linux",
                 integrity = "${{ steps.integrity.outputs.tar_gz_integrity }}",
@@ -272,8 +302,8 @@ jobs:
                 urls = ["https://github.com/${{ github.repository }}/releases/download/${{ steps.release_info.outputs.tag_name }}/${{ steps.release_info.outputs.archive_name }}.tar.gz"],
             )
             ```
-            
-            > ⚠️ 源码包已排除 `examples` 目录
+
+            > ⚠️ 源码包已排除 `examples` 和 `.github` 目录
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
