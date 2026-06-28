@@ -24,6 +24,7 @@ cc_tool_map(
         "@rules_cc//cc/toolchains/actions:assembly_actions": ":gcc",
         "@rules_cc//cc/toolchains/actions:c_compile": ":gcc",
         "@rules_cc//cc/toolchains/actions:cpp_compile_actions": ":g++",
+        "@rules_cc//cc/toolchains/actions:dwp": ":dwp",
         "@rules_cc//cc/toolchains/actions:link_actions": ":ld",
         "@rules_cc//cc/toolchains/actions:objcopy_embed_data": ":objcopy",
         "@rules_cc//cc/toolchains/actions:strip": ":strip",
@@ -90,6 +91,11 @@ cc_tool(
 cc_tool(
     name = "strip",
     src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-strip",
+)
+
+cc_tool(
+    name = "dwp",
+    src = "@gcc-ulibc-linux-armv7l-luckfox//:bin/arm-rockchip830-linux-uclibcgnueabihf-dwp",
 )
 
 #################################
