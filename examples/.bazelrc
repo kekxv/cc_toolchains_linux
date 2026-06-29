@@ -18,3 +18,10 @@ build:linux-loongarch64             --platforms=@cc_toolchains_linux//:linux-loo
 
 # Buildroot 工具链的引导脚本依赖 /proc/self/cwd，在 Bazel 沙箱中无法正确解析
 build --spawn_strategy=local
+
+# rules_foreign_cc 默认会下载/构建一组辅助工具；在 GitHub Actions 上 GNU Make
+# bootstrap 会经过 /proc/self/cwd/bazel-out 并失败。CI 显式安装这些工具，所以这里
+# 优先使用系统工具。
+build --extra_toolchains=@rules_foreign_cc//toolchains:preinstalled_cmake_toolchain
+build --extra_toolchains=@rules_foreign_cc//toolchains:preinstalled_make_toolchain
+build --extra_toolchains=@rules_foreign_cc//toolchains:preinstalled_pkgconfig_toolchain

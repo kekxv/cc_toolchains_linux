@@ -36,6 +36,9 @@ jobs:
           repository-cache: true
           disk-cache: ${{ github.workflow }}-linux
 
+      - name: Install system build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake make pkg-config
+
       - name: Run hello_world (Linux)
         run: bazel run --config=linux :hello_world
 
@@ -72,6 +75,9 @@ jobs:
           bazelisk-version: 1.x
           repository-cache: true
           disk-cache: ${{ github.workflow }}-${{ matrix.platform }}
+
+      - name: Install system build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake make pkg-config
 
       - name: Build and Check ${{ matrix.platform }}
         run: |
