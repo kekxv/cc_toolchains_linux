@@ -14,3 +14,8 @@ build:linux-riscv64                 --platforms=@cc_toolchains_linux//:linux-ris
 
 build:linux-loongarch64             --config=fuse
 build:linux-loongarch64             --platforms=@cc_toolchains_linux//:linux-loongarch64
+
+
+build --strategy=BootstrapGNUMake=local
+build --strategy=CmakeBuild=local          # cmake 构建步骤
+build --strategy=ConfigureMake=local       # configure+make 步骤
