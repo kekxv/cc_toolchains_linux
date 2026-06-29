@@ -16,6 +16,5 @@ build:linux-loongarch64             --config=fuse
 build:linux-loongarch64             --platforms=@cc_toolchains_linux//:linux-loongarch64
 
 
-build --strategy=BootstrapGNUMake=local
-build --strategy=CmakeBuild=local          # cmake 构建步骤
-build --strategy=ConfigureMake=local       # configure+make 步骤
+# Buildroot 工具链的引导脚本依赖 /proc/self/cwd，在 Bazel 沙箱中无法正确解析
+build --spawn_strategy=BootstrapGNUMake=local
