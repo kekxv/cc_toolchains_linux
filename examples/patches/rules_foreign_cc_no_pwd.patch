@@ -1,0 +1,17 @@
+diff --git a/foreign_cc/private/framework.bzl b/foreign_cc/private/framework.bzl
+index 4fdc34f..70a8c83 100644
+--- a/foreign_cc/private/framework.bzl
++++ b/foreign_cc/private/framework.bzl
+@@ -382,6 +382,12 @@ def get_env_prelude(ctx, installdir, data_dependencies, tools_env):
+ 
+         env.update({"PATH": _normalize_path(linker_path) + ":" + env.get("PATH")})
+ 
++    # Some C/C++ toolchains export PWD=/proc/self/cwd. The generated scripts call
++    # $(pwd) again, and bash may trust that PWD value, causing outputs to be
++    # created under /proc/self/cwd/bazel-out. Keep script-relative paths anchored
++    # to Bazel's real execroot instead.
++    env["PWD"] = "$$EXT_BUILD_ROOT$$"
++
+     env_snippet.extend(["export {}=\"{}\"".format(key, escape_dquote_bash(val)) for key, val in env.items()])
+ 
+     return env_snippet
