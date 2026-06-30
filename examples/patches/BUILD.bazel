@@ -1,0 +1,1 @@
+exports_files(["rules_foreign_cc_no_pwd.patch"])

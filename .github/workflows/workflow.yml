@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -34,6 +35,9 @@ jobs:
           bazelisk-version: 1.x
           repository-cache: true
           disk-cache: ${{ github.workflow }}-linux
+
+      - name: Install system build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake make pkg-config
 
       - name: Run hello_world (Linux)
         run: bazel run --config=linux :hello_world
@@ -72,6 +76,9 @@ jobs:
           repository-cache: true
           disk-cache: ${{ github.workflow }}-${{ matrix.platform }}
 
+      - name: Install system build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake make pkg-config
+
       - name: Build and Check ${{ matrix.platform }}
         run: |
           TARGETS=":hello_world third-party/fmtlib:test_fmt"
@@ -96,6 +103,12 @@ jobs:
     needs: cross-compile
     runs-on: ubuntu-latest
     if: needs.cross-compile.result == 'success' && github.ref == 'refs/heads/main'
+    outputs:
+      tag_name: ${{ steps.release_info.outputs.tag_name }}
+      version: ${{ steps.release_info.outputs.version }}
+      archive_name: ${{ steps.release_info.outputs.archive_name }}
+      tar_gz_integrity: ${{ steps.integrity.outputs.tar_gz_integrity }}
+      is_prerelease: ${{ steps.release_info.outputs.is_prerelease }}
 
     steps:
       - name: Checkout Repository
@@ -121,6 +134,7 @@ jobs:
           echo "release_name=Release ${FULL_VERSION}" >> $GITHUB_OUTPUT
           echo "archive_name=${REPO_NAME}-${FULL_VERSION}" >> $GITHUB_OUTPUT
           echo "module_version=${FULL_VERSION}" >> $GITHUB_OUTPUT
+          echo "is_prerelease=false" >> $GITHUB_OUTPUT
 
           echo "=== Release Info ==="
           echo "Version: $FULL_VERSION"
@@ -319,3 +333,18 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           ls -lh dist/ >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  # Job 4: 发布 BCR
+  publish-to-bcr:
+    name: Publish to BCR
+    needs: release
+    if: needs.release.outputs.is_prerelease == 'false'
+    uses: kekxv/bcr/.github/workflows/publish_to_bcr.yml@publish-to-bcr
+    with:
+      tag_name: ${{ needs.release.outputs.tag_name }}
+      module_name: "cc_toolchains_linux"
+    secrets:
+      publish_token: ${{ secrets.PUBLISH_TOKEN }}
+    permissions:
+      contents: write
+      pull-requests: write

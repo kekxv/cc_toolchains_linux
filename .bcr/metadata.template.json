@@ -1,0 +1,15 @@
+{
+    "homepage": "https://github.com/{OWNER}/{REPO}",
+    "maintainers": [
+        {
+            "name": "kekxv",
+            "email": "kekxv@users.noreply.github.com",
+            "github": "kekxv"
+        }
+    ],
+    "repository": [
+        "github:{OWNER}/{REPO}"
+    ],
+    "versions": [],
+    "yanked_versions": {}
+}
